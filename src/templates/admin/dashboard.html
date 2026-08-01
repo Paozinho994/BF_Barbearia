@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="eng">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Barbeiro - Gestão de Reservas</title>
+    <!-- Rota limpa para o ficheiro CSS local -->
+    <link rel="stylesheet" href="/static/main.css">
+</head>
+<body>
+
+    <!-- Topbar / Cabeçalho -->
+    <header>
+        <div>
+            <h1 style="margin:0; font-size:1.25rem;">BF Barbearia Admin</h1>
+            <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px;">
+                <p style="margin:0; font-size:0.75rem; color:var(--text-muted);">Agenda: <span style="color:var(--accent);">{{ data_hoje }}</span></p>
+
+                <!-- NOVO: Filtro de Calendário de Navegação Rápida -->
+                <input type="date" id="filtro_data_topo" value="{{ data_hoje_crua }}"
+                       style="background: #171717; border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.75rem; border-radius: 4px; padding: 2px 5px; cursor: pointer;">
+
+                <!-- Seletor de Barbeiros Integrado por URL -->
+                <select id="filtro_barbeiro_topo" style="background: #171717; border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.75rem; border-radius: 4px; padding: 2px 5px; cursor: pointer;">
+                    <option value="" {% if not filtro_atual %}selected{% endif %}>Ver Todos os Barbeiros</option>
+                    <option value="barbeiro_1" {% if filtro_atual == 'barbeiro_1' %}selected{% endif %}>Bruno Ferreira Barber</option>
+                    <option value="barbeiro_2" {% if filtro_atual == 'barbeiro_2' %}selected{% endif %}>Matheus Santos Barber</option>
+                </select>
+            </div>
+        </div>
+        <button onclick="toggleModal(true)" class="btn-primary">
+            Nova Marcação Manual
+        </button>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main>
+        <!-- Blocos de Resumo Rápido -->
+        <div class="grid-resumo">
+            <div class="card-resumo">
+                <div style="font-size:0.75rem; color:var(--text-muted);">TOTAL HOJE</div>
+                <div style="font-size:1.5rem; font-weight:700; margin-top:0.25rem;">
+                    {{ total_hoje }} {% if total_hoje == 1 %}Corte{% else %}Cortes{% endif %}
+                </div>
+            </div>
+            <div class="card-resumo">
+                <div style="font-size:0.75rem; color:var(--text-muted);">VIA WHATSAPP</div>
+                <div style="font-size:1.5rem; font-weight:700; margin-top:0.25rem; color:#4ade80;">
+                    {{ total_whatsapp }}
+                </div>
+            </div>
+            <div class="card-resumo">
+                <div style="font-size:0.75rem; color:var(--text-muted);">VIA SMS</div>
+                <div style="font-size:1.5rem; font-weight:700; margin-top:0.25rem; color:#60a5fa;">
+                    {{ total_sms }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Reservas Dinâmica -->
+        <div class="lista-container">
+            <div class="lista-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Próximos Clientes (Dia Consultado)</span>
+            </div>
+
+            {% if agendamentos %}
+                {% for agendamento in agendamentos %}
+                <div class="cliente-item">
+                    <div class="cliente-info">
+                        <!-- Mostra a Hora e a Data da Marcação -->
+                        <div class="hora-tag">{{ agendamento.hora }}</div>
+                        <div>
+                            <!-- Exibe o Nome e o Telemóvel se existirem (Fallback para marcações antigas/simuladas) -->
+                            <h4 style="margin:0; font-size:0.875rem;">
+                                {{ agendamento.nome if agendamento.nome else "Bloqueio de Horário" }}
+                            </h4>
+                            <p style="margin:0; font-size:0.75rem; color:var(--text-muted);">
+                                {% if agendamento.servico == 'corte' %} ✂️ Corte de Cabelo (13€)
+                                {% elif agendamento.servico == 'corte+sobrancelha' %} 📐 Corte + Sobrancelha (14€)
+                                {% elif agendamento.servico == 'corte+bigode+sobrancelha' %} 🧔‍♂️ Corte + Bigode e Sobrancelha (15€)
+                                {% elif agendamento.servico == 'corte+barba' %} 🔥 Corte + Barba (18€)
+                                {% elif agendamento.servico == 'corte+barba+sobrancelha' %} 👑 Corte + Barba e Sobrancelha (19€)
+                                {% elif agendamento.servico == 'corte zero+barba' %} 🧑‍🦲 Pente Zero e Alinhar Barba (13€)
+                                {% elif agendamento.servico == 'corte M60' %} 👴 Corte Maiores de 60 anos (10€)
+                                {% elif agendamento.servico == 'barba' %} 🪒 Barba (7€)
+                                {% elif agendamento.servico in ['manual', 'Marcação Manual (Telefone)'] %} 📞 Marcação Manual / Telefone
+                                {% else %} 📅 Horário Ocupado
+                                {% endif %}
+                                {% if agendamento.telemovel %} | {{ agendamento.telemovel }} {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Badges estéticos para o Barbeiro e o Canal de Alerta -->
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <!-- Identificação do Barbeiro -->
+                        {% if agendamento.barbeiro == 'barbeiro_1' %}
+                            <span style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background-color: #eff6ff; color: #1d4ed8; border-radius: 4px; font-weight: 600;">Bruno</span>
+                        {% else %}
+                            <span style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background-color: #ecfdf5; color: #047857; border-radius: 4px; font-weight: 600;">Matheus</span>
+                        {% endif %}
+
+                        <!-- Canal de Notificação Ativo -->
+                        {% if agendamento.canal == 'whatsapp' %}
+                            <span class="badge-whatsapp">📱 WhatsApp</span>
+                        {% elif agendamento.canal == 'sms' %}
+                            <span class="badge-whatsapp" style="background-color: #e0f2fe; color: #0369a1;">💬 SMS</span>
+                        {% else %}
+                            <span class="badge-whatsapp" style="background-color: #f3f4f6; color: #6b7280;">🔕 Alerta Inativo</span>
+                        {% endif %}
+
+                        <!-- Gatilho Caça-Vafas PostgreSQL -->
+                        <form action="/admin/cancelar/{{ agendamento.id }}" method="POST" style="margin: 0;">
+                            <button type="submit" style="background: #fee2e2; color: #991b1b; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="return confirm('Confirmar cancelamento? Isto vai libertar o horário e acionar o Caça-Vagas.')">
+                                ❌ Cancelar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <!-- Mensagem amigável caso a lista ou o filtro estejam vazios -->
+                <div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.875rem;">
+                    📭 Não existem marcações registadas para este filtro ou dia.
+                </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- WINDOW MODAL (Formulário Oculto e Centralizado) -->
+    <div id="bookingModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:1rem;">
+                <h3 style="margin:0; color:var(--accent);">Nova Marcação Manual</h3>
+                <button onclick="toggleModal(false)" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-weight:600; font-size:0.875rem;">Fechar</button>
+            </div>
+
+            <!-- Formulário adaptado para a rota em português -->
+            <form action="/admin/marcar" method="POST">
+                <div class="form-group">
+                    <label class="form-label">Nome do Cliente</label>
+                    <input type="text" name="nome" required class="form-input" placeholder="Ex: Rodrigo Silva">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Telemóvel</label>
+                    <input type="tel" name="telemovel" required class="form-input" placeholder="Ex: 912345678">
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Data do Corte</label>
+                        <input type="date" name="data" id="data_manual" value="{{ data_hoje_crua }}" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Barbeiro Responsável</label>
+                        <select name="barbeiro" id="barbeiro_manual" class="form-input" required>
+                            <option value="barbeiro_1">Bruno Ferreira Barber</option>
+                            <option value="barbeiro_2">Matheus Santos Barber</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Horário Disponível</label>
+                        <select name="hora" id="hora_manual" class="form-input" required>
+                            <option value="">A carregar vagas...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notificação</label>
+                        <select name="canal" class="form-input">
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="sms">SMS Tradicional</option>
+                            <option value="nenhum">Nenhuma</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%; justify-content:center; margin-top:1rem; padding:0.75rem;">
+                    Confirmar e Bloquear Horário
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript para controlo do Modal -->
+    <script>
+        function toggleModal(show) {
+            const modal = document.getElementById('bookingModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                // Força a atualização dos horários livres sempre que o modal abre
+                atualizarHorariosDisponiveis();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // Motor de consulta em tempo real à API de disponibilidade
+        function atualizarHorariosDisponiveis() {
+            const data = document.getElementById("data_manual").value;
+            const barbeiro = document.getElementById("barbeiro_manual").value;
+            const campoHora = document.getElementById("hora_manual");
+
+            if (!data || !barbeiro) return;
+
+            campoHora.innerHTML = '<option value="">A carregar...</option>';
+
+            // Faz o varrimento à API existente no cliente.py
+            fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`)
+                .then(response => response.json())
+                .then(horariosLivres => {
+                    campoHora.innerHTML = '';
+
+                    if (horariosLivres.length === 0) {
+                        campoHora.innerHTML = '<option value="">Esgotado</option>';
+                        return;
+                    }
+
+                    // Popula o select exclusivamente com os horários que não colidem
+                    horariosLivres.forEach(hora => {
+                        const option = document.createElement("option");
+                        option.value = hora;
+                        option.textContent = hora;
+                        campoHora.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error("Erro ao ler horários:", error);
+                    campoHora.innerHTML = '<option value="">Erro na API</option>';
+                });
+        }
+
+        // Executa a atualização caso o barbeiro mude de profissional dentro do modal
+        document.getElementById("barbeiro_manual").addEventListener("change", atualizarHorariosDisponiveis);
+        document.getElementById("data_manual").addEventListener("change", atualizarHorariosDisponiveis);
+
+        // Motor de Reatividade dos Filtros Gerais do Topo (Calendário de Balcão)
+        document.addEventListener("DOMContentLoaded", function() {
+            const filtroData = document.getElementById("filtro_data_topo");
+            const filtroBarbeiro = document.getElementById("filtro_barbeiro_topo");
+
+            function atualizarFiltrosDoTopo() {
+                const dataStr = filtroData.value;
+                const barbeiroStr = filtroBarbeiro.value;
+
+                // Monta a URL dinâmica preservando os dois filtros em simultâneo
+                let url = `/admin/?data=${dataStr}`;
+                if (barbeiroStr) {
+                    url += `&barbeiro=${barbeiroStr}`;
+                }
+
+                // Força o navegador a recarregar a página com os dados filtrados do Postgres
+                window.location.href = url;
+            }
+
+             // Ativa os gatilhos de mudança para o calendário e seletor do topo
+            if (filtroData) filtroData.addEventListener("change", atualizarFiltrosDoTopo);
+            if (filtroBarbeiro) filtroBarbeiro.addEventListener("change", atualizarFiltrosDoTopo);
+        });
+    </script>
+</body>
+</html>

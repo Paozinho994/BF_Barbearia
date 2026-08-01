@@ -1,0 +1,204 @@
+<!DOCTYPE html> #AGENDAMENTO SEM LOGO, ORIGINAL
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BF Barbearia - Agendamento Online</title>
+    <!-- Reutiliza o teu CSS local super leve -->
+    <link rel="stylesheet" href="/static/main.css">
+
+    <style>
+        .btn-submit-premium {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            color: #000000 !important; /* Texto escuro sobre o dourado dá leitura perfeita */
+            font-size: 1.15rem !important;
+            font-weight: 700 !important;
+            border: none !important;
+            border-radius: 10px !important;
+            padding: 16px !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 10px !important;
+            width: 100% !important; /* Garante que o botão preenche a largura do ecrã */
+            min-height: 54px !important;
+            box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3) !important;
+            transition: all 0.2s ease !important;
+            margin-top: 1rem !important;
+            text-decoration: none !important;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            border-radius: 4px;
+
+            /* Inverte a cor de preto para branco e dá um brilho dourado */
+            filter: invert(1) sepia(100%) saturate(10000%) hue-rotate(320deg) brightness(95%);
+
+            opacity: 1 !important; /* Garante que não fica transparente */
+            padding: 2px;
+        }
+
+        /* Garante compatibilidade visual também para quando o campo estiver focado */
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            filter: invert(1) sepia(100%) saturate(10000%) hue-rotate(320deg) brightness(110%);
+        }
+
+        /* Efeito de clique suave no telemóvel */
+        .btn-submit-premium:active {
+            transform: scale(0.98) !important;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2) !important;
+        }
+
+        /* Rodapé Minimalista Integrado */
+        .footer-info {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .telefone-destaque {
+            color: #f59e0b !important;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cabeçalho Público -->
+    <header style="justify-content: center; text-align: center;">
+        <div>
+            <h1 style="margin:0; font-size:1.5rem; color:var(--text-main);">BF Barbearia</h1>
+            <p style="margin:5px 0 0 0; font-size:0.875rem; color:var(--accent);">Marca o teu corte em 10 segundos</p>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal do Cliente -->
+    <main style="max-width: 32rem;">
+
+        <!-- Formulário de Agendamento Público -->
+        <form action="/agendar" method="POST" class="lista-container" style="padding: 1.5rem; space-y: 1.5rem;">
+
+            <!-- 1. ESCOLHER SERVIÇO -->
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label">1. Escolha o Serviço</label>
+                <select name="servico" required class="form-input" style="padding: 0.75rem;">
+                    <option value="" disabled selected>Selecione uma opção...</option>
+                    <option value="corte+sobrancelha">CORTE + SOBRANCELHA (14€)</option>
+                    <option value="corte+bigode+sobrancelha">CORTE + BIGODE E SOBRANCELHA (15€)</option>
+                    <option value="corte+barba+sobrancelha">CORTE + BARBA E SOBRANCELHA (19€)</option>
+                    <option value="corte+barba">CORTE + BARBA (18€)</option>
+                    <option value="corte">CORTE DE CABELO (13€)</option>
+                    <option value="corte zero+barba">PENTE ZERO E ALINHAR BARBA (13€)</option>
+                    <option value="corte M60">CORTE MAIORES DE 60 anos (10€)</option>
+                    <option value="barba">BARBA (7€)</option>
+                </select>
+            </div>
+
+            <!-- 2. ESCOLHER DATA E HORA -->
+            <div class="grid-2" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+
+                <!-- Campo do Dia -->
+                <div class="form-group">
+                    <label class="form-label label-destacada">2. Escolha o Dia </label>
+                    <input type="date" id="campo-data" name="data" required class="form-input campo-grande">
+                </div>
+
+                <!-- Campo do Barbeiro -->
+                <div class="form-group">
+                    <label class="form-label label-destacada">3. Escolha o Barbeiro</label>
+                    <select id="campo-barbeiro" name="barbeiro" required class="form-input campo-grande">
+                        <option value="qualquer" selected>Qualquer um (Mais rápido)</option>
+                        <option value="barbeiro_1">Bruno Ferreira Barber</option>
+                        <option value="barbeiro_2">Matheus Santos Barber</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Hora Disponível</label>
+                <select id="campo-hora" name="hora" required class="form-input" style="padding: 0.75rem;">
+                    <option value="" disabled selected>Selecione...</option>
+                    {% for hora in horarios %}
+                    <option value="{{ hora }}">{{ hora }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- 3. DADOS DE CONTACTO E PREFERÊNCIA DE NOTIFICAÇÃO -->
+            <div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label">O teu Nome</label>
+                    <input type="text" name="nome" placeholder="Ex: Rodrigo Silva" required class="form-input" style="padding: 0.75rem;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Telemóvel (Para avisos)</label>
+                    <input type="tel" name="telemovel" placeholder="9xxxxxxxx" required class="form-input" style="padding: 0.75rem;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Como queres receber o lembrete?</label>
+                    <select name="canal" class="form-input" style="padding: 0.75rem; border-color: var(--accent);">
+                        <option value="whatsapp">Mensagem por WhatsApp</option>
+                        <option value="sms">SMS Tradicional</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- BOTÃO FINAL -->
+            <button type="submit" class="btn-submit-premium">
+                <span>Confirmar Agendamento</span>
+            </button>
+        </form>
+
+    </main>
+
+    <!-- RODAPÉ INFORMATIVO -->
+    <footer class="footer-info">
+        <p style="margin: 0; font-size: 0.95rem; font-weight: 600;">📍 Rua 5 de Outubro, Nº 85, Montemor-o-Novo</p>
+        <p style="margin: 8px 0 0 0; font-size: 0.95rem;">📞 Apoio ao Cliente: <span class="telefone-destaque">+351 912 513 509</span></p>
+        <p style="margin-top: 1.5rem; opacity: 0.4; font-size: 0.75rem;">BF Barbearia © 2026 • Todos os direitos reservados.</p>
+    </footer>
+
+    <!-- Script que conecta o ecrã ao cliente. -->
+    <script>
+        const inputData = document.getElementById('campo-data');
+        const selectBarbeiro = document.getElementById('campo-barbeiro');
+        const selectHora = document.getElementById('campo-hora');
+
+        async function atualizarHorarios() {
+            const data = inputData.value;
+            const barbeiro = selectBarbeiro.value;
+
+            if (!data || !barbeiro) return;
+
+            try {
+                const resposta = await fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`);
+                const horariosLivres = await resposta.json();
+
+                const valorSelecionado = selectHora.value;
+                selectHora.innerHTML = '<option value="" disabled selected>Selecione...</option>';
+
+                horariosLivres.forEach(hora => {
+                    const option = document.createElement('option');
+                    option.value = hora;
+                    option.textContent = hora;
+                    if (hora === valorSelecionado) {
+                        option.selected = true;
+                    }
+                    selectHora.appendChild(option);
+                });
+
+            } catch (erro) {
+                console.error("Erro ao obter horários do Flask:", erro);
+            }
+        }
+
+        inputData.addEventListener('change', atualizarHorarios);
+        selectBarbeiro.addEventListener('change', atualizarHorarios);
+    </script>
+</body>
+</html>
