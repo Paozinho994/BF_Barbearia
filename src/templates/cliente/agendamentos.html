@@ -1,13 +1,62 @@
-<!DOCTYPE html> #AGENDAMENTO SEM LOGO, ORIGINAL
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BF Barbearia - Agendamento Online</title>
-    <!-- Reutiliza o teu CSS local super leve -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BF Barbearia - Agendamento Online</title>
+<!-- Reutiliza o teu CSS local super leve -->
     <link rel="stylesheet" href="/static/main.css">
 
     <style>
+        .header-horizontal-premium {
+            background-color: #121212 !important; /* Fundo escuro premium */
+            width: 100%;
+            padding: 1.25rem 1rem;
+            box-sizing: border-box;
+            border-bottom: 2px solid #f59e0b; /* Linha dourada de união */
+        }
+
+        .header-flex-container {
+            max-width: 32rem;
+            margin: 0 auto;
+            display: flex;
+            align-items: center; /* Alinha o logótipo verticalmente com o centro do texto */
+            gap: 15px;
+        }
+
+        .logo-horizontal-mini {
+            width: 60px; /* Tamanho controlado para manter nitidez absoluta */
+            height: 60px;
+            object-fit: cover;
+            background-color: #ffffff; /* Protege o fundo original da imagem */
+            border-radius: 50%; /* Formato circular moderno */
+            border: 2px solid #f59e0b; /* Aro dourado premium */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            flex-shrink: 0;
+        }
+
+        .header-texto-bloco {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: left;
+        }
+
+        .header-titulo-real {
+            margin: 0 !important;
+            font-size: 1.5rem !important;
+            color: var(--text-main, #ffffff) !important;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitulo-real {
+            margin: 4px 0 0 0 !important;
+            font-size: 0.875rem !important;
+            color: var(--accent, #db2777) !important; /* Mantém o teu tom original de destaque */
+            font-weight: 600;
+        }
+
         .btn-submit-premium {
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
             color: #000000 !important; /* Texto escuro sobre o dourado dá leitura perfeita */
@@ -69,10 +118,13 @@
 <body>
 
     <!-- Cabeçalho Público -->
-    <header style="justify-content: center; text-align: center;">
-        <div>
-            <h1 style="margin:0; font-size:1.5rem; color:var(--text-main);">BF Barbearia</h1>
-            <p style="margin:5px 0 0 0; font-size:0.875rem; color:var(--accent);">Marca o teu corte em 10 segundos</p>
+    <header class="header-horizontal-premium">
+        <div class="header-flex-container">
+            <img src="/static/images/logo.BF.jpg" alt="Logotipo BF" class="logo-horizontal-mini">
+            <div class="header-texto-bloco">
+                <h1 class="header-titulo-real">BF Barbearia</h1>
+                <p class="header-subtitulo-real">Marca o teu corte em 10 segundos</p>
+            </div>
         </div>
     </header>
 
