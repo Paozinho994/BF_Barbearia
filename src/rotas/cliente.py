@@ -1,5 +1,6 @@
 import re
 import random
+from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for
 from src import db
 from src.models import Agendamentos
@@ -161,6 +162,10 @@ def verificar_disponibilidade():
     if not data_req or not barbeiro_req:
         return jsonify(HORARIOS)
 
+    agora = datetime.now()
+    data_hoje_str = agora.strftime('%Y/%m/%d')
+    hora_atual_str = agora.strftime('%H:%M')
+
     # CONSULTAS POSTGRESQL: Procuramos apenas agendamentos ativos para calcular as vagas livres
     if barbeiro_req != "qualquer":
         agendamentos_ocupados = Agendamentos.query.filter_by(
@@ -180,6 +185,9 @@ def verificar_disponibilidade():
 
         #Filtragem total da lista, mantendo apenas os horarios livres
         horarios_livres = [hora for hora in HORARIOS if hora not in hora_cheia]
+
+    if data_req == data_hoje_str:
+        horarios_livres = [hora for hora in horarios_livres if hora > hora_atual_str]
 
     return jsonify(horarios_livres)
 
