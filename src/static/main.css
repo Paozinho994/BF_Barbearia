@@ -9,15 +9,21 @@
     --accent-hover: #d97706;
 }
 
+/* Força o modelo de caixa correto em todo o lado */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 html, body {
     height: 100%;
     margin: 0;
+    padding: 0;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
 }
 
-/* Header */
+/* Header (Painel Administrativo) */
 header {
     display: flex;
     justify-content: space-between;
@@ -25,7 +31,7 @@ header {
     padding: 1rem 1.5rem;
     background-color: rgba(23, 23, 23, 0.5);
     backdrop-filter: blur(8px);
-    border-b: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color); /* CORRIGIDO: de border-b para border-bottom */
 }
 
 .btn-primary {
@@ -47,7 +53,7 @@ header {
     background-color: var(--accent-hover);
 }
 
-/* Conteúdo */
+/* Conteúdo Principal (Painel Administrativo) */
 main {
     max-width: 64rem;
     width: 100%;
@@ -57,7 +63,7 @@ main {
 
 .grid-resumo {
     display: grid;
-    grid-template-cols: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* CORRIGIDO: de grid-template-cols para grid-template-columns */
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -69,7 +75,7 @@ main {
     border-radius: 0.75rem;
 }
 
-/* Tabela/Lista de Clientes */
+/* Tabela/Lista de Clientes (Painel Administrativo) */
 .lista-container {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -79,7 +85,7 @@ main {
 
 .lista-header {
     padding: 1rem 1.25rem;
-    border-b: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color); /* CORRIGIDO: de border-b para border-bottom */
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -92,7 +98,7 @@ main {
     justify-content: space-between;
     align-items: center;
     padding: 1rem;
-    border-b: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .cliente-info {
@@ -146,7 +152,7 @@ main {
     display: none !important;
 }
 
-/* Formulários */
+/* Formulários Gerais do Painel Administrativo */
 .form-group {
     margin-bottom: 1rem;
 }
@@ -168,7 +174,6 @@ main {
     padding: 0.5rem 0.75rem;
     color: var(--text-main);
     font-size: 0.875rem;
-    box-sizing: border-box;
 }
 
 .form-input:focus {
@@ -178,6 +183,6 @@ main {
 
 .grid-2 {
     display: grid;
-    grid-template-cols: 1fr 1fr;
+    grid-template-columns: 1fr 1fr; /* CORRIGIDO: de grid-template-cols para grid-template-columns */
     gap: 1rem;
 }

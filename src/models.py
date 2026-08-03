@@ -1,7 +1,5 @@
-from email.policy import default
-
 from src import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 class Agendamentos(db.Model):
     """Modelo que define a tabela de agendamentos no PostgreSQL"""
@@ -25,7 +23,7 @@ class Agendamentos(db.Model):
     status = db.Column(db.String(20), default='ativo', nullable=False)
 
     #Timestamp de Criação
-    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self) -> str:
         return f"<Agendamentos {self.id} - {self.nome} ({self.data} às {self.hora})>"

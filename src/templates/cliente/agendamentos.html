@@ -1,26 +1,63 @@
-<!DOCTYPE html>
+<!DOCTYPE html> #AGENDAMENTO COM LOGO REDONDO E LETRAS DE LADO (O MELHOR)
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BF Barbearia - Agendamento Online</title>
-<!-- Reutiliza o teu CSS local super leve -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BF Barbearia - Agendamento Online</title>
+    <!-- Reutiliza o teu CSS local super leve -->
     <link rel="stylesheet" href="/static/main.css">
 
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box !important;
+        }
+
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+            position: relative;
+
+        }
+
+        main {
+            display: block;
+            width: 100% !important;
+            max-width: 32rem !important;
+            margin: 0 auto !important;
+            padding: 1.5rem 12px 3rem 12px !important;
+        }
+
+        .lista-container, .form-group, .form-input, select, input, .grid-2 {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+
+        @media (max-width: 440px) {
+            .grid-2 {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 1rem !important;
+            }
+        }
+
         .header-horizontal-premium {
-            background-color: #121212 !important; /* Fundo escuro premium */
-            width: 100%;
-            padding: 1.25rem 1rem;
-            box-sizing: border-box;
-            border-bottom: 2px solid #f59e0b; /* Linha dourada de união */
+            background-color: #121212 !important;
+            width: 100% !important;
+            padding: 1.25rem 1rem !important;
+            border-bottom: 2px solid #f59e0b;
         }
 
         .header-flex-container {
+            width: 100% !important;
             max-width: 32rem;
             margin: 0 auto;
             display: flex;
-            align-items: center; /* Alinha o logótipo verticalmente com o centro do texto */
+            align-items: center;
+            justify-content: center;
             gap: 15px;
         }
 
@@ -40,21 +77,23 @@
             flex-direction: column;
             justify-content: center;
             text-align: left;
+            min-width: 0;
         }
 
         .header-titulo-real {
             margin: 0 !important;
-            font-size: 1.5rem !important;
-            color: var(--text-main, #ffffff) !important;
+            font-size: 1.4rem !important;
+            color: #ffffff !important;
             font-weight: 800;
-            letter-spacing: -0.5px;
+            white-space: nowrap;
         }
 
         .header-subtitulo-real {
             margin: 4px 0 0 0 !important;
-            font-size: 0.875rem !important;
-            color: var(--accent, #db2777) !important; /* Mantém o teu tom original de destaque */
+            font-size: 0.85rem !important;
+            color: #f59e0b !important;
             font-weight: 600;
+            word-wrap: break-word;
         }
 
         .btn-submit-premium {
@@ -104,9 +143,13 @@
         .footer-info {
             text-align: center;
             margin-top: 2rem;
+            padding: 0 16px 2rem 16px; /* Adiciona margens internas para o texto não bater no vidro */
             font-size: 0.85rem;
-            color: var(--text-secondary);
+            color: var(--text-muted); /* CORRIGIDO: Usa a variável existente no teu main.css */
             line-height: 1.5;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            word-wrap: break-word !important;
         }
 
         .telefone-destaque {
@@ -129,10 +172,10 @@
     </header>
 
     <!-- Conteúdo Principal do Cliente -->
-    <main style="max-width: 32rem;">
+    <main style="max-width: 32rem; width: 100%; margin: 0 auto; padding: 0 8px; box-sizing: border-box;">
 
         <!-- Formulário de Agendamento Público -->
-        <form action="/agendar" method="POST" class="lista-container" style="padding: 1.5rem; space-y: 1.5rem;">
+        <form action="/agendar" method="POST" class="lista-container" style="width: 100%; padding: 1rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 1.25rem;">
 
             <!-- 1. ESCOLHER SERVIÇO -->
             <div class="form-group" style="margin-bottom: 1.5rem;">

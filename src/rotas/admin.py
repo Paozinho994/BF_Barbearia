@@ -1,3 +1,4 @@
+import re
 from flask import Blueprint, render_template, request, redirect, url_for
 from datetime import datetime
 from src import db
@@ -78,6 +79,16 @@ def criar_marcacao_manual():
     if not nome_cliente or not telemovel or not hora_corte:
         return "Erro: Todos os campos são obrigatórios.", 400
 
+    telemovel_limpo = re.sub(r'\D', '', telemovel)
+
+    if not re.match(r"^9\d{8}$", telemovel_limpo):
+        return (
+            "<h1>Erro: O número de telemóvel introduzido no painel é inválido!</h1>"
+            "<p>Certifique-se de que inseriu exatamente 9 dígitos e que o número começa por 9 (ex: 912345678).</p>"
+            "<br><a href='javascript:history.back()'>← Voltar Atrás</a>",
+            400
+        )
+
     colisao = Agendamentos.query.filter_by(
         data=data_escolhida,
         hora=hora_corte,
@@ -94,7 +105,7 @@ def criar_marcacao_manual():
         barbeiro=barbeiro_escolhido,
         hora=hora_corte,
         nome=nome_cliente,
-        telemovel=telemovel,
+        telemovel=telemovel_limpo,
         servico="Marcação Manual (Telefone)",
         canal=canal_notificacao,
         status='ativo'

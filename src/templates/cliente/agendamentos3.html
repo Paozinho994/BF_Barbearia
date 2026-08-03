@@ -1,13 +1,51 @@
 <!DOCTYPE html> #AGENDAMENTO COM LOGO REDONDO E LETRAS DE LADO (O MELHOR)
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BF Barbearia - Agendamento Online</title>
-<!-- Reutiliza o teu CSS local super leve -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BF Barbearia - Agendamento Online</title>
+    <!-- Reutiliza o teu CSS local super leve -->
     <link rel="stylesheet" href="/static/main.css">
 
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box !important; /* Força os paddings a irem para dentro */
+        }
+
+        body {
+            overflow-x: hidden !important; /* Trava absoluta contra desvios de ecrã */
+            width: 100% !important;
+            margin: 0;
+            padding: 0;
+        }
+
+        main {
+            max-width: 32rem !important; /* Limita o tamanho no PC */
+            width: 100% !important;
+            margin: 1rem auto !important;
+            padding: 0 12px 3rem 12px !important; /* ANULA E SUBSTITUI O PADDING DO MAIN.CSS */
+            box-sizing: border-box !important;
+        }
+
+        .lista-container, .form-group, .form-input, select, input, .grid-2 {
+            box-sizing: border-box !important;
+            max-width: 100% !important;
+        }
+
+        /* Força o formulário público a respeitar os limites do ecrã do smartphone */
+        body {
+            overflow-x: hidden !important;
+            width: 100% !important;
+        }
+
+        main {
+            max-width: 32rem !important;
+            width: 100% !important;
+            margin: 0 auto !important;
+            padding: 0 10px !important; /* Margem de segurança contra o vidro */
+            box-sizing: border-box !important;
+        }
+
         .header-horizontal-premium {
             background-color: #121212 !important; /* Fundo escuro premium */
             width: 100%;
