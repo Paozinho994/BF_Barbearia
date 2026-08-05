@@ -14,11 +14,16 @@ HORARIOS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "15:00", "15:3
 @cliente_bp.route('/')
 def index() -> str:
     """Rota raiz que serve a interface pública de agendamento."""
-    return render_template('cliente/agendamentos.html', horarios=HORARIOS)
+    data_atual = datetime.now().strftime('%Y/%m/%d')
+    return render_template('cliente/agendamentos.html', horarios=HORARIOS, data_atual_sistema=data_atual)
 
 @cliente_bp.route('/agendar', methods=['POST'])
 def agendamento():
     """Recebe e valida e dispara o alerta personalizado contra no-shows."""
+
+    agora_validacao = datetime.now()
+    hoje_str = agora_validacao.strftime('%Y/%m/%d')
+    hora_agora_str = agora_validacao.strftime('%H:%M')
 
     #Captura de todas as variáveis do formulário HTML de forma segura
     servico_escolhido: str = request.form.get('servico', '')
@@ -29,6 +34,9 @@ def agendamento():
     telemovel: str = request.form.get('telemovel', '').strip()
     telemovel_limpo = re.sub(r'\D', '', telemovel)
     canal_notificacao: str = request.form.get('canal', 'whatsapp')
+
+    if data_escolhida < hoje_str or (data_escolhida == hoje_str and hora_escolhida <= hora_agora_str):
+        return "<h1>Erro: Não é permitido efetuar agendamentos para datas ou horários passados!</h1>", 400
 
     if not re.match(r"^9[12367]\d{7}$", telemovel_limpo):
         return "<h1>Erro: O número de telemóvel introduzido é inválido. Certifique-se de que tem 9 dígitos e começa por 91, 92, 93, 96 ou 97!</h1>", 400
@@ -163,7 +171,7 @@ def verificar_disponibilidade():
         return jsonify(HORARIOS)
 
     agora = datetime.now()
-    data_hoje_str = agora.strftime('%Y/%m/%d')
+    data_hoje_str = agora.strftime('%Y-%m-%d')
     hora_atual_str = agora.strftime('%H:%M')
 
     # CONSULTAS POSTGRESQL: Procuramos apenas agendamentos ativos para calcular as vagas livres
@@ -186,8 +194,20 @@ def verificar_disponibilidade():
         #Filtragem total da lista, mantendo apenas os horarios livres
         horarios_livres = [hora for hora in HORARIOS if hora not in hora_cheia]
 
-    if data_req == data_hoje_str:
+    #Bloqueio de agendamentos no passado
+    if data_req < data_hoje_str:
+        horarios_livres = []
+    elif data_req == data_hoje_str:
         horarios_livres = [hora for hora in horarios_livres if hora > hora_atual_str]
+
+    #Bloqueia Domingos e Segundas-Feiras
+    try:
+        data_objeto = datetime.strptime(data_req, '%Y-%m-%d')
+        dia_da_semana = data_objeto.weekday()
+        if dia_da_semana == 6 or dia_da_semana == 0:
+            horarios_livres = []
+    except ValueError:
+        pass
 
     return jsonify(horarios_livres)
 
