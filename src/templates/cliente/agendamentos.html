@@ -199,7 +199,7 @@
                 <!-- Campo do Dia -->
                 <div class="form-group">
                     <label class="form-label label-destacada">2. Escolha o Dia </label>
-                    <input type="date" id="campo-data" name="data" required class="form-input campo-grande">
+                    <input type="date" id="campo-data" name="data" min="{{ data_atual_sistema }}" required class="form-input campo-grande">
                 </div>
 
                 <!-- Campo do Barbeiro -->
@@ -270,23 +270,36 @@
 
             if (!data || !barbeiro) return;
 
+            // VALIDAÇÃO DOS DIAS DE FOLGA (Domingo e Segunda)
+            // O JavaScript lê datas no formato ISO com hifen adicionando a timezone local correta
+            const dataObj = new Date(data + 'T00:00:00');
+            const diaDaSemana = dataObj.getDay(); // 0 = Domingo, 1 = Segunda
+
+            if (diaDaSemana === 0 || diaDaSemana === 1) {
+                // Esvazia as horas e injeta o alerta como uma opção inválida e selecionada
+                selectHora.innerHTML = '<option value="" disabled selected>🚫 Dia de Folga da Equipe</option>';
+                return; // Corta a execução e não faz o fetch para o Flask
+            }
+
             try {
                 const resposta = await fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`);
                 const horariosLivres = await resposta.json();
-
                 const valorSelecionado = selectHora.value;
+
                 selectHora.innerHTML = '<option value="" disabled selected>Selecione...</option>';
+
+                if (horariosLivres.length === 0) {
+                    selectHora.innerHTML = '<option value="" disabled selected>❌ Sem vagas para este dia</option>';
+                    return;
+                }
 
                 horariosLivres.forEach(hora => {
                     const option = document.createElement('option');
                     option.value = hora;
                     option.textContent = hora;
-                    if (hora === valorSelecionado) {
-                        option.selected = true;
-                    }
+                    if (hora === valorSelecionado) option.selected = true;
                     selectHora.appendChild(option);
                 });
-
             } catch (erro) {
                 console.error("Erro ao obter horários do Flask:", erro);
             }

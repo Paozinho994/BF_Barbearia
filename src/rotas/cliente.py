@@ -1,4 +1,5 @@
 import re
+import requests
 import random
 from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for
@@ -14,7 +15,7 @@ HORARIOS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "15:00", "15:3
 @cliente_bp.route('/')
 def index() -> str:
     """Rota raiz que serve a interface pública de agendamento."""
-    data_atual = datetime.now().strftime('%Y/%m/%d')
+    data_atual = datetime.now().strftime('%Y-%m-%d')
     return render_template('cliente/agendamentos.html', horarios=HORARIOS, data_atual_sistema=data_atual)
 
 @cliente_bp.route('/agendar', methods=['POST'])
@@ -22,7 +23,7 @@ def agendamento():
     """Recebe e valida e dispara o alerta personalizado contra no-shows."""
 
     agora_validacao = datetime.now()
-    hoje_str = agora_validacao.strftime('%Y/%m/%d')
+    hoje_str = agora_validacao.strftime('%Y-%m-%d')
     hora_agora_str = agora_validacao.strftime('%H:%M')
 
     #Captura de todas as variáveis do formulário HTML de forma segura
@@ -89,8 +90,11 @@ def agendamento():
     )
     db.session.add(novo_agendamento)
     db.session.commit()
+    #Captura o ID real gerado pela base de dados PostgreSQL
+    id_gerado = novo_agendamento.id
 
     dados_notificacao = {
+        "id": id_gerado,
         "data": data_escolhida,
         "barbeiro": barbeiro_final,
         "hora": hora_escolhida,
@@ -110,6 +114,10 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
     if canal_notificacao == 'nenhum':
         return
 
+    id_agendamento = agendamento.get('id', 0)
+
+    link_cancelamento = f"http://localhost:5000/cancelar-vaga/{id_agendamento}"
+
     nome_cliente = agendamento.get('nome', '')
     servico_escolhido = agendamento.get('servico', 'Serviço')
     data_escolhida = agendamento.get('data', '')
@@ -124,27 +132,63 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
 
     print(f"\n➔[{origem}] A processar envio via {canal_notificacao.upper()}")
 
-    servico_formatado = servico_escolhido.replace('+', ' e ').upper()
+    servico_formatado = servico_escolhido.replace('+', ' + ').upper().strip()
+
+    telemovel_limpo = re.sub(r'\D', '', telemovel)
+    if not telemovel_limpo.startswith('351') and len(telemovel_limpo) == 9:
+        telemovel_api = f"351{telemovel_limpo}"
+    else:
+        telemovel_api = telemovel_limpo
 
     if canal_notificacao == "whatsapp":
         mensagem_whatsapp = (
             f"Olá {nome_cliente}! 👋\n\n"
-            f"O teu corte de **{servico_escolhido.replace('+', 'e').upper()}** está confirmado na **BF Barbearia**! 💈\n"
+            f"O teu corte de **{servico_formatado}** está confirmado na **BF Barbearia**! 💈\n"
             f"📅 Data: {data_escolhida}\n"
             f"⏰ Hora: {hora_escolhida}\n"
             f"✂️ Profissional: {nome_barbeiro_formatado}\n\n"
-            f"Se precisares de alterar ou cancelar, clica aqui até 4h antes: http://bfbarber.pt\n"
+            f"Se precisares de alterar ou cancelar, clica aqui até 2h antes:\n{link_cancelamento}\n\n"
             f"Até já! 🔥"
         )
         print("------------------------------------------")
         print(mensagem_whatsapp)
         print("------------------------------------------")
 
+        URL_EVOLUTION = "http://localhost:8080/message/sendText/BF-Barbearia"
+        import os
+        API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
+
+        payload = {
+            "number": telemovel_api,
+            "text": mensagem_whatsapp,
+            "options": {
+                "delay": 1200,  # Simula digitação humana para proteção do teu número
+                "presence": "composing"
+            }
+        }
+
+        headers = {
+            "apikey": API_KEY_EVOLUTION,
+            "Content-Type": "application/json"
+        }
+
+        try:
+            # Faz o disparo HTTP local para o motor Node.js enviar para o teu telemóvel
+            resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=8)
+
+            if resposta.status_code in [200, 201]:
+                print(f"🚀 [WHATSAPP REAL] Mensagem entregue com sucesso para {nome_cliente} ({telemovel_api})")
+            else:
+                print(
+                    f"⚠️ [FALHA WHATSAPP] Servidor recusou. Status: {resposta.status_code}. Resposta: {resposta.text}")
+        except requests.exceptions.RequestException as erro:
+            print(f"❌ [ERRO CRÍTICO API] Impossível comunicar com a Evolution API local: {erro}")
+
     else:
         mensagem_sms = (
             f"BF Barbearia: Marcacao confirmada para {nome_cliente}. "
             f"{servico_escolhido.split()[0]} no dia {data_escolhida} as {hora_escolhida} com {nome_barbeiro_formatado}. "
-            f"Para alterar ligue p/ a barbearia."
+            f"Para alterar ou cancelar, ligue para a barbearia ou clique no link até 2h antes: {link_cancelamento}"
         )
         print("------------------------------------------")
         print(mensagem_sms)
@@ -154,8 +198,8 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
 
     #Captura de dados pronta para ser enviada para a Base de Dados.
     print(f"\n========[REGISTO DE SISTEMA - {origem}]========")
-    print(f"Cliente: {nome_cliente} ({telemovel})")
-    print(f"Serviço: {servico_escolhido.upper()}")
+    print(f"Cliente: {nome_cliente} ({telemovel_api})")
+    print(f"Serviço: {servico_formatado}")
     print(f"Profissional: {barbeiro_escolhido.replace('_', '').title()}")
     print(f"Data/Hora: {data_escolhida} às {hora_escolhida}")
     print(f"Canal de Alerta: Enviar lembrete automático via {canal_notificacao.upper()}")
@@ -302,3 +346,48 @@ def enviar_alerta_troca_concluida(agendamento: dict):
         f"O teu horário antigo foi libertado. Obrigado por nos ajudar a manter a agenda cheia! 💈"
     )
     print("------------------------------------------")
+
+@cliente_bp.route('/cancelar_vaga/<int:id_agendamento>', methods=['GET', 'POST'])
+def cancelamento_publico(id_agendamento: int):
+    """Página pública que permite ao cliente cancelar o seu próprio corte e ativa o Caça-Vagas."""
+
+    from src.rotas.admin import executar_algoritmo_caca_vagas
+
+    #Procura o agendamento ativo no PostgreSQL pelo ID
+    agendamento = db.session.get(Agendamentos, id_agendamento)
+
+    if not agendamento or agendamento.status != 'ativo':
+        return "<h1 style='font-family:sans-serif; text-align:center; margin-top:5rem;'>⚠️ Esta marcação já não se encontra ativa ou não existe!</h1>", 400
+    if request.method == 'POST':
+        #Captura os dados antes de cancelar para o ecrã de sucesso
+        nome_cliente = agendamento.nome
+        data_corte = agendamento.data
+        hora_corte = agendamento.hora
+
+        #Reutilização
+        executar_algoritmo_caca_vagas(id_agendamento)
+
+        return f'''
+        <div style="text-align: center; font-family: sans-serif; padding: 4rem; background: #0a0a0a; color: #fff; height: 100vh;">
+            <h2 style="color: #22c55e;">Cancelado com Sucesso! ✅</h2>
+            <p>Olá {nome_cliente}, o teu horário de dia {data_corte} às {hora_corte} foi libertado no sistema.</p>
+            <p>Obrigado por avisares com antecedência! 💈</p>
+            <br><a href="/" style="color: #f59e0b; text-decoration: none; font-weight: bold;">← Voltar ao Início</a>
+        </div>
+        '''
+
+    #Ecrã GET
+    return f'''
+    <div style="text-align: center; font-family: sans-serif; padding: 3rem; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%;">
+            <h2 style="color: #f59e0b; margin-top: 0;">BF Barbearia</h2>
+            <p style="color: #a3a3a3;">Olá <strong>{agendamento.nome}</strong>, confirmas o cancelamento do teu agendamento?</p>
+            <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {agendamento.data} | ⏰ Hora: {agendamento.hora}</p>
+            <form method="POST">
+                <button type="submit" style="background: #dc2626; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem;">
+                    ❌ Confirmar Cancelamento Definitivo
+                </button>
+            </form>
+        </div>
+    </div>
+    '''

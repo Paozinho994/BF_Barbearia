@@ -1,4 +1,5 @@
 import re
+import requests
 from flask import Blueprint, render_template, request, redirect, url_for
 from datetime import datetime
 from src import db
@@ -121,52 +122,85 @@ def criar_marcacao_manual():
 
     return redirect(url_for('admin.dashboard'))
 
-@admin_bp.route('/cancelar/<int:id_agendamento>', methods=['POST'])
-def cancelar_ou_noshow(id_agendamento: int):
-    """Remove o agendamento cancelado e ativa a fila cronológica de antecipação por horário."""
+def executar_algoritmo_caca_vagas(id_agendamento: int):
+    """Motor Centralizado do Caça-Vagas da BF Barbearia."""
 
     agendamento = db.session.get(Agendamentos, id_agendamento)
-    if not agendamento:
-        return "Erro: Agendamento não encontrado.", 400
+    if not agendamento or agendamento.status != 'ativo':
+        return False
 
     data_cancelada = agendamento.data
     hora_cancelada = agendamento.hora
     barbeiro_cancelado = agendamento.barbeiro
 
-    #Atualização da coluna status
+    #Libertar o horário mudando para 'cancelado'
     agendamento.status = 'cancelado'
     db.session.commit()
 
-    print(f"\n⚠️ [DESMARCAÇÃO] Vaga aberta: Dia {data_cancelada} às {hora_cancelada}.")
-
-    #Algoritmo Caça-Vagas
+    #Executar a pesquisa de clientes no futuro
     candidatos = Agendamentos.query.filter(
         Agendamentos.hora == hora_cancelada,
         Agendamentos.barbeiro == barbeiro_cancelado,
         Agendamentos.status == 'ativo',
         Agendamentos.nome != None,
-        Agendamentos.data > data_cancelada
+        Agendamentos.data == data_cancelada
     ).order_by(Agendamentos.data).all()
 
     if candidatos:
         cliente_alvo = candidatos[0]
-        nome_barbeiro = "Bruno" if barbeiro_cancelado == "barbeiro_1" else "Matheus"
+        nome_barbeiro = "Bruno Ferreira" if barbeiro_cancelado == "barbeiro_1" else "Matheus Santos"
 
-        print(f"\n🚀 [MOTOR CAÇA-VAGAS] Cliente prioritário detetado: {cliente_alvo.nome} (Agendado para dia {cliente_alvo.data} às {cliente_alvo.hora})")
+        print(f"🚀 [MOTOR CENTRAL] Cliente prioritário detetado: {cliente_alvo.nome}")
+
+        telemovel_limpo = re.sub(r'\D', '', cliente_alvo.telemovel)
+        telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
 
         if cliente_alvo.canal == "whatsapp":
-            print(
+        # Monta o texto do convite
+            texto_convite_whatsapp = (
                 f"Olá {cliente_alvo.nome}! 👋 Notícia fantástica da **BF Barbearia**! 💈\n\n"
-                f"Uma vaga de última hora acabou de abrir para **dia {data_cancelada} às {hora_cancelada}** com o barbeiro {nome_barbeiro}.\n"
-                f"Como tens corte marcado para o dia {cliente_alvo.data} às {cliente_alvo.hora}, gostarias de antecipar o teu atendimento?\n\n"
-                f"🔥 Responde **SIM** para mudarmos o teu horário automaticamente."
+                f"Uma vaga de última hora acabou de abrir para **dia {data_cancelada} às {hora_cancelada}** com o profissional {nome_barbeiro}.\n\n"
+                f"Como tens corte marcado para o dia {cliente_alvo.data} às {cliente_alvo.hora}, gostarias de antecipar o teu atendimento para hoje?\n\n"
+                f"🔥 Responde **SIM** para mudarmos o teu horário de forma automática no sistema."
             )
-        else:
-            print(
-                f"BF Barbearia: {cliente_alvo.nome}, abriu vaga dia {agendamento.data} as {agendamento.hora} com {nome_barbeiro}. "
-                f"Quer antecipar o seu corte de dia {cliente_alvo.data}? Responda SIM para trocar."
-            )
-    else:
-        print("💡 [MOTOR CAÇA-VAGAS] Vaga livre no site público. Não existem clientes nos dias seguintes neste horário.")
 
+            # Disparo real via a tua Evolution API local ativa
+            URL_EVOLUTION = "http://localhost:8080/message/sendText/BF-Barbearia"
+            payload = {
+                "number": telemovel_api,
+                "text": texto_convite_whatsapp,
+                "options": {"delay": 1500, "presence": "composing"}
+            }
+            headers = {"apikey": "bf_bruno", "Content-Type": "application/json"}
+
+            try:
+                resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=8)
+                if resposta.status_code in [200, 201]:
+                    print(f"🚀 [CAÇA-VAGAS WHATSAPP] Convite do Caça-Vagas entregue a {cliente_alvo.nome}")
+            except Exception as e:
+                print(f"❌ [ERRO REDE WHATSAPP] Falha ao comunicar com a Evolution API: {e}")
+        else:
+            texto_convite_sms = (
+                f"BF Barbearia: {cliente_alvo.nome}, abriu vaga dia {data_cancelada} as {hora_cancelada} com {nome_barbeiro}. "
+                f"Quer antecipar o seu corte de dia {cliente_alvo.data}? Responda SIM para trocar automaticamente."
+            )
+
+            print("\n------------------------------------------")
+            print(f"📱 [SIMULAÇÃO SMS REAL] A enviar para {telemovel_api}:")
+            print(texto_convite_sms)
+            print("------------------------------------------")
+            print(f"🚀 [CAÇA-VAGAS SMS] Alerta de antecipação registado em log para {cliente_alvo.nome}")
+
+    else:
+        print("💡 [MOTOR CENTRAL] Sem clientes em fila de espera para este horário. Vaga aberta no site.")
+
+    return True
+
+@admin_bp.route('/cancelar/<int:id_agendamento>', methods=['POST'])
+def cancelar_ou_noshow(id_agendamento: int):
+    """Rota do Painel de Controlo que aciona o Motor do Caça-Vagas."""
+
+    sucesso = executar_algoritmo_caca_vagas(id_agendamento)
+    if not sucesso:
+        return "Erro: Agendamento não encontrado ou já cancelado.", 400
     return redirect(url_for('admin.dashboard'))
