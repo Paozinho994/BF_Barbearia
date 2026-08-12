@@ -116,7 +116,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
 
     id_agendamento = agendamento.get('id', 0)
 
-    link_cancelamento = f"http://localhost:5000/cancelar-vaga/{id_agendamento}"
+    link_cancelamento = f"http://bf-barbearia.onrender.com/cancelar_vaga/{id_agendamento}"
 
     nome_cliente = agendamento.get('nome', '')
     servico_escolhido = agendamento.get('servico', 'Serviço')
