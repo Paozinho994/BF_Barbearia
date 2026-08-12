@@ -187,7 +187,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
     else:
         mensagem_sms = (
             f"BF Barbearia: Marcacao confirmada para {nome_cliente}. "
-            f"{servico_escolhido.split()[0]} no dia {data_escolhida} as {hora_escolhida} com {nome_barbeiro_formatado}. "
+            f"{servico_formatado} no dia {data_escolhida} as {hora_escolhida} com {nome_barbeiro_formatado}. "
             f"Para alterar ou cancelar, ligue para a barbearia ou clique no link até 2h antes: {link_cancelamento}"
         )
         print("------------------------------------------")

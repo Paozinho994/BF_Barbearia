@@ -165,13 +165,15 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
             )
 
             # Disparo real via a tua Evolution API local ativa
-            URL_EVOLUTION = "http://localhost:8080/message/sendText/BF-Barbearia"
+            URL_EVOLUTION = "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia"
+            import os
+            API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
             payload = {
                 "number": telemovel_api,
                 "text": texto_convite_whatsapp,
                 "options": {"delay": 1500, "presence": "composing"}
             }
-            headers = {"apikey": "bf_bruno", "Content-Type": "application/json"}
+            headers = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
 
             try:
                 resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=8)
