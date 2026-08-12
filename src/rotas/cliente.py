@@ -154,7 +154,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
         print(mensagem_whatsapp)
         print("------------------------------------------")
 
-        URL_EVOLUTION = "http://localhost:8080/message/sendText/BF-Barbearia"
+        URL_EVOLUTION = "https://obtuse-pasty-traitor.ngrok-free.dev"
         import os
         API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
 
