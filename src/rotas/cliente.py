@@ -378,16 +378,27 @@ def cancelamento_publico(id_agendamento: int):
 
     #Ecrã GET
     return f'''
-    <div style="text-align: center; font-family: sans-serif; padding: 3rem; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%;">
-            <h2 style="color: #f59e0b; margin-top: 0;">BF Barbearia</h2>
-            <p style="color: #a3a3a3;">Olá <strong>{agendamento.nome}</strong>, confirmas o cancelamento do teu agendamento?</p>
-            <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {agendamento.data} | ⏰ Hora: {agendamento.hora}</p>
-            <form method="POST">
-                <button type="submit" style="background: #dc2626; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem;">
-                    ❌ Confirmar Cancelamento Definitivo
-                </button>
-            </form>
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <!-- O COMANDO MÁGICO: Força o telemóvel a ajustar a escala do ecrã para 100% automaticamente -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BF Barbearia - Cancelar</title>
+    </head>
+    <body style="margin: 0; padding: 0; background: #0a0a0a;">
+        <div style="text-align: center; font-family: sans-serif; padding: 3rem; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%;">
+                <h2 style="color: #f59e0b; margin-top: 0;">BF Barbearia</h2>
+                <p style="color: #a3a3a3;">Olá <strong>{agendamento.nome}</strong>, confirmas o cancelamento do teu agendamento?</p>
+                <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {agendamento.data} | ⏰ Hora: {agendamento.hora}</p>
+                <form method="POST">
+                    <button type="submit" style="background: #dc2626; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem;">
+                        ❌ Confirmar Cancelamento Definitivo
+                    </button>
+                </form>
+            </div>
         </div>
-    </div>
+    </body>
+    </html>
     '''

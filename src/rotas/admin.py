@@ -2,9 +2,9 @@ import re
 import requests
 from flask import Blueprint, render_template, request, redirect, url_for
 from datetime import datetime
+import os
 from src import db
 from src.models import Agendamentos
-from src.rotas.cliente import HORARIOS, disparar_notificacao_inteligente
 
 
 # Inicializa o Blueprint do administrador
@@ -13,6 +13,8 @@ admin_bp = Blueprint('admin', __name__)
 @admin_bp.route('/')
 def dashboard() -> str:
     """Renderiza o painel de administração principal"""
+    from src.rotas.cliente import HORARIOS
+
     barbeiro_filtro = request.args.get('barbeiro', '')
 
     #Gerador de data
@@ -67,6 +69,7 @@ def dashboard() -> str:
 @admin_bp.route('/marcar', methods=['POST'])
 def criar_marcacao_manual():
     """Recebe e processa os dados do formulário de marcação manual."""
+    from src.rotas.cliente import disparar_notificacao_inteligente
 
     #Captura os dados enviados pelo formulário HTML de forma segura
     nome_cliente: str = request.form.get('nome', '').strip()
@@ -143,7 +146,7 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
         Agendamentos.barbeiro == barbeiro_cancelado,
         Agendamentos.status == 'ativo',
         Agendamentos.nome != None,
-        Agendamentos.data == data_cancelada
+        Agendamentos.data > data_cancelada
     ).order_by(Agendamentos.data).all()
 
     if candidatos:
