@@ -130,15 +130,18 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
 
     agendamento = db.session.get(Agendamentos, id_agendamento)
     if not agendamento or agendamento.status != 'ativo':
-        return False
+        print(f"⚠️ [MOTOR CENTRAL] Agendamento {id_agendamento} já não está ativo. A verificar fila de espera...")
+        if not agendamento:
+            return False
 
     data_cancelada = agendamento.data
     hora_cancelada = agendamento.hora
     barbeiro_cancelado = agendamento.barbeiro
 
     #Libertar o horário mudando para 'cancelado'
-    agendamento.status = 'cancelado'
-    db.session.commit()
+    if agendamento.status == 'ativo':
+        agendamento.status = 'cancelado'
+        db.session.commit()
 
     #Executar a pesquisa de clientes no futuro
     candidatos = Agendamentos.query.filter(
@@ -172,9 +175,14 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
             import os
             API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
             payload = {
-                "number": telemovel_api,
-                "text": texto_convite_whatsapp,
-                "options": {"delay": 1500, "presence": "composing"}
+                "number": f"{telemovel_api}@s.whatsapp.net",
+                "options": {
+                    "delay": 1500,
+                    "presence": "composing"
+                },
+                "textMessage": {
+                    "text": texto_convite_whatsapp
+                }
             }
             headers = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
 

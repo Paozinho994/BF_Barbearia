@@ -259,11 +259,25 @@ def verificar_disponibilidade():
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 
-    dados = request.get_json() or {}
+    dados_webhook = request.get_json() or {}
 
-    #Captura o telemóvel de quem enviou a menagem e o texto
-    telemovel_remetente = dados.get('telemovel', '').strip()
-    mensagem_texto = dados.get('texto', '').strip().upper()
+    #Extrai os dados no formato nativo da Evolution API v2
+    data_obj = dados_webhook.get('data', {})
+    mensagem_obj = data_obj.get('message', {})
+
+    #Captura o texto da mensagem
+    mensagem_texto = ""
+    if "conversa" in mensagem_obj:
+        mensagem_texto = mensagem_obj.get('conversa', '').strip().upper()
+    elif 'extendedTextMessage' in mensagem_obj:
+        mensagem_texto = mensagem_obj.get('extendedTextMessage', {}).get('text', '').strip().upper()
+
+    #Captura o JID (JabberID) do remetente
+    key_obj = data_obj.get('key', {})
+    remote_jid = key_obj.get('remoteJid', '')
+
+    #Limpa o JID para obter apenas os número do telemóvel
+    telemovel_remetente = remote_jid.split('@')[0].strip() if remote_jid else ""
 
     if not telemovel_remetente or "SIM" not in mensagem_texto:
         return jsonify({"status": "ignorado", "motivo": "Mensagem não é aceitável."}), 200
@@ -285,6 +299,7 @@ def confirmar_antecipacao():
 
     if not vaga_disponivel:
         #Caso a vaga já tenha sido preenchida no site público
+        print(f"⏳ Vaga de antecipação já preenchida no site para {cliente_alvo.nome}")
         return jsonify({"status": "esgotado", "motivo": "A vaga de antecipação já foi preenchida por outro utilizador"}), 200
 
     #Armazenamento de dados para o LOG e NOTIFICAÇÃO
@@ -335,17 +350,59 @@ def confirmar_antecipacao():
 
 def enviar_alerta_troca_concluida(agendamento: dict):
     """Envia o comprovativo de que o horário foi alterado com sucesso pelo motor"""
+    import os
     nome_barbeiro = "Bruno Ferreira" if agendamento['barbeiro'] == "barbeiro_1" else "Matheus Santos"
 
-    print(f"\n➔ [MOTOR] A enviar confirmação de antecipação para {agendamento['nome']}")
-    print("------------------------------------------")
-    print(
+    URL_BASE_NGROK = " https://obtuse-pasty-traitor.ngrok-free.dev"
+    NOME_INSTANCIA = "BF-Barbearia"
+    API_KEY = os.getenv("FLASK_SECRET_KEY", "chave_local")
+
+    endpoint = f"{URL_BASE_NGROK}/message/sendText/{NOME_INSTANCIA}"
+
+    headers = {
+        "Content-Type": "application/json",
+        "apikey": API_KEY
+    }
+
+    #Construção da Mensagem Premium
+    texto_mensagem = (
         f"Concluído com sucesso, {agendamento['nome']}! 🔥\n\n"
         f"O teu horário foi alterado automaticamente no sistema da **BF Barbearia**. 🚀\n"
         f"Esperamos por ti no novo dia **{agendamento['data']} às {agendamento['hora']}** com o barbeiro {nome_barbeiro}.\n\n"
         f"O teu horário antigo foi libertado. Obrigado por nos ajudar a manter a agenda cheia! 💈"
     )
-    print("------------------------------------------")
+
+    #Garante que o número tem sufixo correto para o WhatsApp
+    numero_destino = agendamento['telemovel']
+    if not numero_destino.endswith("@s.whatsapp.net"):
+        #Limpa catacteres estranhos caso existam
+        numero_limpo = "".join(filter(str.isdigit, numero_destino))
+        numero_destino = f"{numero_limpo}@s.whatsapp.net"
+
+    payload = {
+        "number": numero_destino,
+        "options": {
+            "delay": 1200,  # Pequeno delay de 1.2 segundos para parecer humano
+            "presence": "composing"
+        },
+        "textMessage": {
+            "text": texto_mensagem
+        }
+    }
+
+    #Envio do pedido HTTP
+    try:
+        print(f"\n➔ [MOTOR] A disparar WhatsApp real de sucesso para {agendamento['nome']} ({numero_destino})...")
+
+        resposta = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+
+        if resposta.status_code in [200, 201]:
+            print(f"✅ [WHATSAPP] Mensagem de troca concluída entregue com sucesso!")
+        else:
+            print(f"⚠️ [WHATSAPP] Erro no envio. Código: {resposta.status_code} | Resposta: {resposta.text}")
+
+    except Exception as erro:
+        print(f"❌ [ERRO CRÍTICO] Falha de rede ao comunicar com a Evolution API: {erro}")
 
 @cliente_bp.route('/cancelar_vaga/<int:id_agendamento>', methods=['GET', 'POST'])
 def cancelamento_publico(id_agendamento: int):
