@@ -255,9 +255,12 @@ def verificar_disponibilidade():
 
     return jsonify(horarios_livres)
 
-@cliente_bp.route('/webhook/confirmar-antecipacao', methods=['POST'])
+@cliente_bp.route('/webhook/confirmar-antecipacao', methods=['GET', 'POST'])
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
+
+    if request.method == 'GET':
+        return jsonify({"status": "operacional"}), 200
 
     dados_webhook = request.get_json() or {}
 
