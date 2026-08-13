@@ -180,9 +180,7 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
                     "delay": 1500,
                     "presence": "composing"
                 },
-                "textMessage": {
-                    "text": texto_convite_whatsapp
-                }
+                "text": texto_convite_whatsapp
             }
             headers = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
 
