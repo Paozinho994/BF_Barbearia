@@ -267,8 +267,8 @@ def confirmar_antecipacao():
 
     #Captura o texto da mensagem
     mensagem_texto = ""
-    if "conversa" in mensagem_obj:
-        mensagem_texto = mensagem_obj.get('conversa', '').strip().upper()
+    if "conversation" in mensagem_obj:
+        mensagem_texto = mensagem_obj.get('conversation', '').strip().upper()
     elif 'extendedTextMessage' in mensagem_obj:
         mensagem_texto = mensagem_obj.get('extendedTextMessage', {}).get('text', '').strip().upper()
 
@@ -425,12 +425,28 @@ def cancelamento_publico(id_agendamento: int):
         executar_algoritmo_caca_vagas(id_agendamento)
 
         return f'''
-        <div style="text-align: center; font-family: sans-serif; padding: 4rem; background: #0a0a0a; color: #fff; height: 100vh;">
-            <h2 style="color: #22c55e;">Cancelado com Sucesso! ✅</h2>
-            <p>Olá {nome_cliente}, o teu horário de dia {data_corte} às {hora_corte} foi libertado no sistema.</p>
-            <p>Obrigado por avisares com antecedência! 💈</p>
-            <br><a href="/" style="color: #f59e0b; text-decoration: none; font-weight: bold;">← Voltar ao Início</a>
-        </div>
+        <!DOCTYPE html>
+        <html lang="pt">
+        <head>
+            <meta charset="UTF-8">
+            <!-- Comando mágico para adaptar instantaneamente ao ecrã do telemóvel -->
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>BF Barbearia - Cancelado</title>
+        </head>
+        <body style="margin: 0; padding: 0; background: #0a0a0a;">
+            <div style="text-align: center; font-family: sans-serif; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%; box-sizing: border-box;">
+                    <h2 style="color: #22c55e; margin-top: 0; font-size: 1.8rem;">Cancelado com Sucesso! ✅</h2>
+                    <p style="color: #e5e5e5; font-size: 1.05rem; line-height: 1.5;">Olá <strong>{nome_cliente}</strong>, o teu horário de dia <strong>{data_corte}</strong> às <strong>{hora_corte}</strong> foi libertado com sucesso no sistema.</p>
+                    <p style="color: #a3a3a3; font-size: 0.95rem;">Obrigado por avisares com antecedência! 💈</p>
+                    <br>
+                    <a href="/" style="display: inline-block; background: #262626; color: #f59e0b; text-decoration: none; font-weight: bold; padding: 12px 24px; border-radius: 8px; border: 1px solid #404040; width: 100%; box-sizing: border-box; font-size: 1rem;">
+                        ← Voltar ao Início
+                    </name_cliente>
+                </div>
+            </div>
+        </body>
+        </html>
         '''
 
     #Ecrã GET
