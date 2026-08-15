@@ -277,7 +277,7 @@ def confirmar_antecipacao():
 
     #Captura o JID (JabberID) do remetente
     key_obj = data_obj.get('key', {})
-    remote_jid = key_obj.get('remoteJid', '')
+    remote_jid = key_obj.get('remoteJidAlt') or key_obj.get('remoteJid', '')
 
     #Limpa o JID para obter apenas os número do telemóvel
     telemovel_remetente = remote_jid.split('@')[0].strip() if remote_jid else ""
@@ -356,7 +356,7 @@ def enviar_alerta_troca_concluida(agendamento: dict):
     import os
     nome_barbeiro = "Bruno Ferreira" if agendamento['barbeiro'] == "barbeiro_1" else "Matheus Santos"
 
-    URL_BASE_NGROK = " https://obtuse-pasty-traitor.ngrok-free.dev"
+    URL_BASE_NGROK = "https://obtuse-pasty-traitor.ngrok-free.dev"
     NOME_INSTANCIA = "BF-Barbearia"
     API_KEY = os.getenv("FLASK_SECRET_KEY", "chave_local")
 
@@ -377,25 +377,25 @@ def enviar_alerta_troca_concluida(agendamento: dict):
 
     #Garante que o número tem sufixo correto para o WhatsApp
     numero_destino = agendamento['telemovel']
-    if not numero_destino.endswith("@s.whatsapp.net"):
-        #Limpa catacteres estranhos caso existam
-        numero_limpo = "".join(filter(str.isdigit, numero_destino))
-        numero_destino = f"{numero_limpo}@s.whatsapp.net"
+    numero_limpo = "".join(filter(str.isdigit, str(numero_destino)))
+
+    if len(numero_limpo) == 9:
+        jid_final = f"351{numero_limpo}@s.whatsapp.net"
+    else:
+        jid_final = f"{numero_limpo}@s.whatsapp.net"
 
     payload = {
-        "number": numero_destino,
+        "number": jid_final,
         "options": {
             "delay": 1200,  # Pequeno delay de 1.2 segundos para parecer humano
             "presence": "composing"
         },
-        "textMessage": {
-            "text": texto_mensagem
+        "text": texto_mensagem
         }
-    }
 
     #Envio do pedido HTTP
     try:
-        print(f"\n➔ [MOTOR] A disparar WhatsApp real de sucesso para {agendamento['nome']} ({numero_destino})...")
+        print(f"\n➔ [MOTOR] A disparar WhatsApp real de sucesso para {agendamento['nome']} ({jid_final})...")
 
         resposta = requests.post(endpoint, json=payload, headers=headers, timeout=10)
 
