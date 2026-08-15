@@ -266,21 +266,24 @@ def confirmar_antecipacao():
 
     #Extrai os dados no formato nativo da Evolution API v2
     data_obj = dados_webhook.get('data', {})
-    mensagem_obj = data_obj.get('message', {})
+    message_obj = data_obj.get('message', {})
 
     #Captura o texto da mensagem
     mensagem_texto = ""
-    if "conversation" in mensagem_obj:
-        mensagem_texto = mensagem_obj.get('conversation', '').strip().upper()
-    elif 'extendedTextMessage' in mensagem_obj:
-        mensagem_texto = mensagem_obj.get('extendedTextMessage', {}).get('text', '').strip().upper()
+    if "conversation" in message_obj:
+        mensagem_texto = message_obj.get('conversation', '').strip().upper()
+    elif 'extendedTextMessage' in message_obj:
+        mensagem_texto = message_obj.get('extendedTextMessage', {}).get('text', '').strip().upper()
 
     #Captura o JID (JabberID) do remetente
     key_obj = data_obj.get('key', {})
     remote_jid = key_obj.get('remoteJidAlt') or key_obj.get('remoteJid', '')
 
     #Limpa o JID para obter apenas os número do telemóvel
-    telemovel_remetente = remote_jid.split('@')[0].strip() if remote_jid else ""
+    telemovel_remetente = ""
+    if remote_jid:
+        numero_puro = remote_jid.split('@')[0].strip()
+        telemovel_remetente = numero_puro[-9:] if len(numero_puro) >= 9 else numero_puro
 
     if not telemovel_remetente or "SIM" not in mensagem_texto:
         return jsonify({"status": "ignorado", "motivo": "Mensagem não é aceitável."}), 200
