@@ -260,9 +260,9 @@ def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 
     if request.method == 'GET':
-        return jsonify({"status": "operacional"}), 200
+        return jsonify({"status": "operacional", "mensagem": "Webhook"}), 200
 
-    dados_webhook = request.get_json() or {}
+    dados_webhook = request.get_json(silent=True) or {}
 
     #Extrai os dados no formato nativo da Evolution API v2
     data_obj = dados_webhook.get('data', {})
