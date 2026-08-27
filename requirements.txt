@@ -4,3 +4,5 @@ python-dotenv==1.0.1
 psycopg2-binary==2.9.9
 gunicorn==22.0.0
 requests==2.32.3
+APSCcheduler>=3.10.0
+pytz
