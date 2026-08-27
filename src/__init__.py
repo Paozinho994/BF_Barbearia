@@ -2,11 +2,20 @@ import os
 from flask import Flask
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Carrega as variáveis de ambiente do ficheiro .env global
 load_dotenv()
 db = SQLAlchemy()
 
+scheduler = BackgroundScheduler(timezone="Europe/Lisbon")
+
+def executar_lembrete_com_contexto(app_instancia):
+    """Garante que a query corre com o contexto correto da aplicação passada por parâmetro."""
+    with app_instancia.app_context():
+        from src.rotas.admin import lembretes_matinais
+        lembretes_matinais()
 
 def create_app() -> Flask:
     """Factory function para inicializar e configurar a aplicação Flask."""
@@ -39,5 +48,21 @@ def create_app() -> Flask:
     # A rota do cliente será a raiz (/) e a do admin terá o prefixo (/admin)
     app.register_blueprint(cliente_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
+
+
+    scheduler.remove_all_jobs()
+
+        # Agenda a tarefa para correr rigorosamente às 08:00h da manhã todos os dias
+    scheduler.add_job(
+        executar_lembrete_com_contexto,
+        trigger=CronTrigger(hour=8, minute=0, second=0),
+        id="lembretes_diarios_08am",
+        args=[app],  # Passa a app como argumento
+        replace_existing=True
+    )
+
+    scheduler.start()
+    app.config['SCHEDULER_INICIADO'] = True
+    print("\n[SISTEMA] 🚀 Motor APScheduler acoplado e trancado com sucesso!")
 
     return app

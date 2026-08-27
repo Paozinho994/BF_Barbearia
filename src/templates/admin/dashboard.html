@@ -13,11 +13,11 @@
     <header>
         <div>
             <h1 style="margin:0; font-size:1.25rem;">BF Barbearia Admin</h1>
-            <div style="display: flex; gap: 15px; align-items: center; margin-top: 5px;">
+            <form action="/admin/" method="GET" style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
                 <p style="margin:0; font-size:0.75rem; color:var(--text-muted);">Agenda: <span style="color:var(--accent);">{{ data_hoje }}</span></p>
 
-                <!-- NOVO: Filtro de Calendário de Navegação Rápida -->
-                <input type="date" id="filtro_data_topo" value="{{ data_hoje_crua }}"
+                <!-- Filtro de Calendário de Navegação Rápida -->
+                <input type="date" name="data" id="filtro_data_topo" value="{{ data_hoje_crua }}"
                        style="background: #171717; border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.75rem; border-radius: 4px; padding: 2px 5px; cursor: pointer;">
 
                 <!-- Seletor de Barbeiros Integrado por URL -->
@@ -26,7 +26,7 @@
                     <option value="barbeiro_1" {% if filtro_atual == 'barbeiro_1' %}selected{% endif %}>Bruno Ferreira Barber</option>
                     <option value="barbeiro_2" {% if filtro_atual == 'barbeiro_2' %}selected{% endif %}>Matheus Santos Barber</option>
                 </select>
-            </div>
+            </form>
         </div>
         <button onclick="toggleModal(true)" class="btn-primary">
             Nova Marcação Manual
@@ -47,12 +47,6 @@
                 <div style="font-size:0.75rem; color:var(--text-muted);">VIA WHATSAPP</div>
                 <div style="font-size:1.5rem; font-weight:700; margin-top:0.25rem; color:#4ade80;">
                     {{ total_whatsapp }}
-                </div>
-            </div>
-            <div class="card-resumo">
-                <div style="font-size:0.75rem; color:var(--text-muted);">VIA SMS</div>
-                <div style="font-size:1.5rem; font-weight:700; margin-top:0.25rem; color:#60a5fa;">
-                    {{ total_sms }}
                 </div>
             </div>
         </div>
@@ -103,8 +97,6 @@
                         <!-- Canal de Notificação Ativo -->
                         {% if agendamento.canal == 'whatsapp' %}
                             <span class="badge-whatsapp">📱 WhatsApp</span>
-                        {% elif agendamento.canal == 'sms' %}
-                            <span class="badge-whatsapp" style="background-color: #e0f2fe; color: #0369a1;">💬 SMS</span>
                         {% else %}
                             <span class="badge-whatsapp" style="background-color: #f3f4f6; color: #6b7280;">🔕 Alerta Inativo</span>
                         {% endif %}
@@ -170,9 +162,8 @@
                     <div class="form-group">
                         <label class="form-label">Notificação</label>
                         <select name="canal" class="form-input">
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="sms">SMS Tradicional</option>
-                            <option value="nenhum">Nenhuma</option>
+                            <option value="whatsapp" selected>WhatsApp</option>
+                            <option value="nenhum">Não quero lembrete</option>
                         </select>
                     </div>
                 </div>

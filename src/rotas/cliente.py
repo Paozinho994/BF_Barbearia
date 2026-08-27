@@ -10,7 +10,7 @@ from src.models import Agendamentos
 cliente_bp = Blueprint('cliente', __name__)
 
 #Lista com TODAS as horas por padrão
-HORARIOS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"]
+from src.constants import HORARIOS
 
 @cliente_bp.route('/')
 def index() -> str:
@@ -105,13 +105,21 @@ def agendamento():
     }
     disparar_notificacao_inteligente(dados_notificacao, origem="ONLINE")
 
-    return render_template('cliente/sucesso.html')
+    return render_template(
+        'cliente/sucesso.html',
+        nome_cliente=nome_cliente,
+        servico_escolhido=servico_escolhido,
+        data_escolhida=data_escolhida,
+        hora_escolhida=hora_escolhida,
+        canal_notificacao=canal_notificacao
+    )
 
 def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
     """Motor Único de Notificações da BF Barbearia (Usado por Clientes e Admin)"""
 
     canal_notificacao = agendamento.get('canal', 'whatsapp')
-    if canal_notificacao == 'nenhum':
+    if canal_notificacao in ['nenhum', 'sms']:
+        print(f"➔ [{origem}] Nenhuma notificação digital agendada por opção do cliente/sistema.")
         return
 
     id_agendamento = agendamento.get('id', 0)
@@ -154,9 +162,10 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
         print(mensagem_whatsapp)
         print("------------------------------------------")
 
-        URL_EVOLUTION = "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia"
         import os
+        API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia")
         API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
+        URL_EVOLUTION = f"{API_BASE}/message/sendText/BF-Barbearia"
 
         payload = {
             "number": telemovel_api,
@@ -183,16 +192,6 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
                     f"⚠️ [FALHA WHATSAPP] Servidor recusou. Status: {resposta.status_code}. Resposta: {resposta.text}")
         except requests.exceptions.RequestException as erro:
             print(f"❌ [ERRO CRÍTICO API] Impossível comunicar com a Evolution API local: {erro}")
-
-    else:
-        mensagem_sms = (
-            f"BF Barbearia: Marcacao confirmada para {nome_cliente}. "
-            f"{servico_formatado} no dia {data_escolhida} as {hora_escolhida} com {nome_barbeiro_formatado}. "
-            f"Para alterar ou cancelar, ligue para a barbearia ou clique no link até 2h antes: {link_cancelamento}"
-        )
-        print("------------------------------------------")
-        print(mensagem_sms)
-        print("------------------------------------------")
 
     print(f"\n[SUCESSO] Horário {hora_escolhida} bloqueado para {barbeiro_escolhido} no dia {data_escolhida}.\n")
 
@@ -285,17 +284,51 @@ def confirmar_antecipacao():
         numero_puro = remote_jid.split('@')[0].strip()
         telemovel_remetente = numero_puro[-9:] if len(numero_puro) >= 9 else numero_puro
 
-    if not telemovel_remetente or "SIM" not in mensagem_texto:
+    resposta_sim = "SIM" in mensagem_texto
+    resposta_nao = "NÃO" in mensagem_texto or "NAO" in mensagem_texto
+
+    if not telemovel_remetente or (not resposta_sim and not resposta_nao):
         return jsonify({"status": "ignorado", "motivo": "Mensagem não é aceitável."}), 200
 
     #Procura pelo agendamento ATIVO deste cliente (o mais próximo no futuro)
     cliente_alvo = Agendamentos.query.filter(
         Agendamentos.telemovel.like(f"%{telemovel_remetente}%"),
-        Agendamentos.status == "ativo",
+        Agendamentos.status == "em_proposta",
     ).order_by(Agendamentos.data).first()
 
     if not cliente_alvo:
         return jsonify({"status": "erro", "motivo": "Nenhum agendamento ativo encontrado para este número"}), 404
+
+    #Cenário Rejeição
+    if resposta_nao:
+        print(f"❌ [WEBHOOK] O cliente {cliente_alvo.nome} recusou a vaga de imediato. A passar ao próximo...")
+
+        #Guardamos os dados da vaga proposta que estão no slot cancelado antes de alterar o cliente
+        vaga_original = Agendamentos.query.filter_by(
+            hora=cliente_alvo.hora,
+            barbeiro=cliente_alvo.barbeiro,
+            status='cancelado'
+        ).order_by(Agendamentos.data).first()
+
+        #Reverte o cliente para 'ativo' no seu horário original
+        id_cliente_proposto = cliente_alvo.id
+        cliente_alvo.status = 'recusado_ciclo'
+        db.session.commit()
+
+        #Cancelamento do temporizador após recessão de resposta do cliente
+        from src import scheduler
+        try:
+            scheduler.remove_job(f"timeout_caca_vagas_{id_cliente_proposto}")
+        except Exception:
+            pass
+
+        #Dispara o algoritmo para o próximo candidato da fila
+        if vaga_original:
+            from src.rotas.admin import executar_algoritmo_caca_vagas
+            executar_algoritmo_caca_vagas(id_agendamento=vaga_original.id)
+
+        return jsonify({"status": "sucesso", "mensagem": "Recusa processada e vaga passada ao próximo cliente."}), 200
+
 
     vaga_disponivel = Agendamentos.query.filter_by(
         hora=cliente_alvo.hora,
@@ -305,13 +338,14 @@ def confirmar_antecipacao():
 
     if not vaga_disponivel:
         #Caso a vaga já tenha sido preenchida no site público
-        print(f"⏳ Vaga de antecipação já preenchida no site para {cliente_alvo.nome}")
-        return jsonify({"status": "esgotado", "motivo": "A vaga de antecipação já foi preenchida por outro utilizador"}), 200
+        print(f"⏳ Vaga de antecipação já preenchida ou expirada para {cliente_alvo.nome}")
+        return jsonify({"status": "esgotado", "motivo": "A vaga de antecipação já foi preenchida ou o tempo expirou."}), 200
 
     #Armazenamento de dados para o LOG e NOTIFICAÇÃO
     data_antiga = cliente_alvo.data
     data_nova = vaga_disponivel.data
     hora_corte = cliente_alvo.hora
+    id_cliente_proposto = cliente_alvo.id
 
     #Transação no PostgreSQL
     try:
@@ -332,7 +366,19 @@ def confirmar_antecipacao():
         print(f"\n⚡ [SUCESSO!] Cliente {vaga_disponivel.nome} antecipado com sucesso!")
         print(f"De: {data_antiga} -> Para: {data_nova} às {hora_corte}\n")
 
+        from src import scheduler
+        try:
+            scheduler.remove_job(f"timeout_caca_vagas_{id_cliente_proposto}")
+            print(f"⏱️ [WEBHOOK] Temporizador de 30 minutos cancelado para {vaga_disponivel.nome}.")
+        except Exception as e:
+            #Caso o job já tenha rodado ao mesmo tempo ou não seja encontrado
+            print(f"⚠️ [WEBHOOK] Não foi possível remover o temporizador: {e}")
+
+        #Cenário Confirmação
         #Dispara uma confirmação de sucesso para o telemovel do cliente
+        from src.rotas.admin import executar_algoritmo_caca_vagas
+        executar_algoritmo_caca_vagas(id_agendamento=id_cliente_proposto)
+
         dados_sucesso = {
             "nome": vaga_disponivel.nome,
             "telemovel": vaga_disponivel.telemovel,
@@ -357,13 +403,14 @@ def confirmar_antecipacao():
 def enviar_alerta_troca_concluida(agendamento: dict):
     """Envia o comprovativo de que o horário foi alterado com sucesso pelo motor"""
     import os
+    import requests
     nome_barbeiro = "Bruno Ferreira" if agendamento['barbeiro'] == "barbeiro_1" else "Matheus Santos"
 
-    URL_BASE_NGROK = "https://obtuse-pasty-traitor.ngrok-free.dev"
+    API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
     NOME_INSTANCIA = "BF-Barbearia"
     API_KEY = os.getenv("FLASK_SECRET_KEY", "chave_local")
 
-    endpoint = f"{URL_BASE_NGROK}/message/sendText/{NOME_INSTANCIA}"
+    endpoint = f"{API_BASE}/message/sendText/{NOME_INSTANCIA}"
 
     headers = {
         "Content-Type": "application/json",

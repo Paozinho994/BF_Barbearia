@@ -6,14 +6,13 @@ import os
 from src import db
 from src.models import Agendamentos
 
-
 # Inicializa o Blueprint do administrador
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/')
 def dashboard() -> str:
     """Renderiza o painel de administração principal"""
-    from src.rotas.cliente import HORARIOS
+    from src.constants import HORARIOS
 
     barbeiro_filtro = request.args.get('barbeiro', '')
 
@@ -40,7 +39,6 @@ def dashboard() -> str:
 
     total_hoje = Agendamentos.query.filter_by(data=data_selecionada_crua, status='ativo').count()
     total_whatsapp = Agendamentos.query.filter_by(data=data_selecionada_crua, canal='whatsapp', status='ativo').count()
-    total_sms = Agendamentos.query.filter_by(data=data_selecionada_crua, canal='sms', status='ativo').count()
 
     #Ordem cronológica das horas de corte
     agendamentos_ordenados = query_ativos.order_by(Agendamentos.hora).all()
@@ -60,7 +58,6 @@ def dashboard() -> str:
         horarios = HORARIOS,
         total_hoje = total_hoje,
         total_whatsapp = total_whatsapp,
-        total_sms= total_sms,
         data_hoje=data_exibicao_formatada,
         data_hoje_crua=data_selecionada_crua,
         data_atual_sistema=data_hoje_crua
@@ -118,20 +115,25 @@ def criar_marcacao_manual():
     db.session.commit()
 
     dados_notificacao = {
-        "data": data_escolhida, "barbeiro": barbeiro_escolhido, "hora": hora_corte,
+        "id": nova_marcacao.id, "data": data_escolhida, "barbeiro": barbeiro_escolhido, "hora": hora_corte,
         "nome": nome_cliente, "telemovel": telemovel, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao
     }
     disparar_notificacao_inteligente(dados_notificacao, origem="MANUAL/BALCÃO")
 
     return redirect(url_for('admin.dashboard'))
 
-def executar_algoritmo_caca_vagas(id_agendamento: int):
+def executar_algoritmo_caca_vagas(id_agendamento: int, id_cliente_ignorar: int = None):
     """Motor Centralizado do Caça-Vagas da BF Barbearia."""
+    from datetime import datetime, timedelta
+    from src import scheduler
 
+    #Se o agendamento não existir ou já tiver sido preenchido, reset da fila
     agendamento = db.session.get(Agendamentos, id_agendamento)
     if not agendamento or agendamento.status != 'ativo':
         print(f"⚠️ [MOTOR CENTRAL] Agendamento {id_agendamento} já não está ativo. A verificar fila de espera...")
         if not agendamento:
+            Agendamentos.query.filter_by(status='recusado_ciclo').update({Agendamentos.status: 'ativo'})
+            db.session.commit()
             return False
 
     data_cancelada = agendamento.data
@@ -149,7 +151,8 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
         Agendamentos.barbeiro == barbeiro_cancelado,
         Agendamentos.status == 'ativo',
         Agendamentos.nome != None,
-        Agendamentos.data > data_cancelada
+        Agendamentos.data > data_cancelada,
+        Agendamentos.canal != 'caça_vagas_recusado'
     ).order_by(Agendamentos.data).all()
 
     if candidatos:
@@ -161,21 +164,27 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
         telemovel_limpo = re.sub(r'\D', '', cliente_alvo.telemovel)
         telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
 
-        if cliente_alvo.canal == "whatsapp":
+        #Tranca o cliente atual como proposta
+        cliente_alvo.status = 'em_proposta'
+        db.session.commit()
+
+        if cliente_alvo.canal == "whatsapp" or cliente_alvo.canal == "nenhum":
         # Monta o texto do convite
             texto_convite_whatsapp = (
                 f"Olá {cliente_alvo.nome}! 👋 Notícia fantástica da **BF Barbearia**! 💈\n\n"
                 f"Uma vaga de última hora acabou de abrir para **dia {data_cancelada} às {hora_cancelada}** com o profissional {nome_barbeiro}.\n\n"
-                f"Como tens corte marcado para o dia {cliente_alvo.data} às {cliente_alvo.hora}, gostarias de antecipar o teu atendimento para hoje?\n\n"
-                f"🔥 Responde **SIM** para mudarmos o teu horário de forma automática no sistema."
+                f"Como tens corte marcado para o dia {cliente_alvo.data} às {cliente_alvo.hora}, gostarias de antecipar o teu atendimento?\n\n"
+                f"⏳ *Nota:* Tens **30 minutos** para responder antes que a vaga passe para o próximo cliente.\n\n"
+                f"🔥 Responde **SIM** para aceitar a troca automática ou **NÃO** para passar a oportunidade."
             )
 
             # Disparo real via a tua Evolution API local ativa
-            URL_EVOLUTION = "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia"
             import os
+            API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
             API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
+            URL_EVOLUTION = f"{API_BASE}/message/sendText/BF-Barbearia"
             payload = {
-                "number": f"{telemovel_api}@s.whatsapp.net",
+                "number": telemovel_api,
                 "options": {
                     "delay": 1500,
                     "presence": "composing"
@@ -190,22 +199,57 @@ def executar_algoritmo_caca_vagas(id_agendamento: int):
                     print(f"🚀 [CAÇA-VAGAS WHATSAPP] Convite do Caça-Vagas entregue a {cliente_alvo.nome}")
             except Exception as e:
                 print(f"❌ [ERRO REDE WHATSAPP] Falha ao comunicar com a Evolution API: {e}")
-        else:
-            texto_convite_sms = (
-                f"BF Barbearia: {cliente_alvo.nome}, abriu vaga dia {data_cancelada} as {hora_cancelada} com {nome_barbeiro}. "
-                f"Quer antecipar o seu corte de dia {cliente_alvo.data}? Responda SIM para trocar automaticamente."
-            )
 
-            print("\n------------------------------------------")
-            print(f"📱 [SIMULAÇÃO SMS REAL] A enviar para {telemovel_api}:")
-            print(texto_convite_sms)
-            print("------------------------------------------")
-            print(f"🚀 [CAÇA-VAGAS SMS] Alerta de antecipação registado em log para {cliente_alvo.nome}")
+        import pytz
+        from datetime import datetime, timedelta
+        from flask import current_app
+
+        #Temporizador
+        tz = pytz.timezone("Europe/Lisbon")
+        tempo_limite = datetime.now(tz) + timedelta(minutes=2)
+        app_real = current_app._get_current_object()
+
+        from src import scheduler
+
+        scheduler.add_job(
+            verificar_timeout_caca_vagas,
+            trigger='date',
+            run_date=tempo_limite,
+            args=[cliente_alvo.id, data_cancelada, hora_cancelada, barbeiro_cancelado, id_agendamento, app_real],
+            id=f"timeout_caca_vagas_{cliente_alvo.id}",
+            replace_existing=True
+        )
+        print(f"⏱️ [CAÇA-VAGAS] Temporizador de 30 minutos ativado para {cliente_alvo.nome} (ID: {cliente_alvo.id}).")
 
     else:
         print("💡 [MOTOR CENTRAL] Sem clientes em fila de espera para este horário. Vaga aberta no site.")
-
+        Agendamentos.query.filter_by(status='recusado_ciclo').update({Agendamentos.status: 'ativo'})
+        db.session.commit()
     return True
+
+def verificar_timeout_caca_vagas(id_cliente: int, data_vaga: str, hora_vaga: str, barbeiro_vaga: str, id_vaga_cancelada: int, app_instancia: any):
+    """Função de retaguarda que roda se o cliente ignorar o convite por 30 minutos."""
+    from src import db
+    from src.models import Agendamentos
+
+    with app_instancia.app_context():
+        cliente = db.session.get(Agendamentos, id_cliente)
+
+        #Se o cliente ainda estiver "em_proposta", significa que o tempo terminou e não respondeu
+        if cliente and cliente.status == 'em_proposta':
+            print(f"⏳ [TIMEOUT 30 MIN] O cliente {cliente.nome} não respondeu. A libertar vaga...")
+
+            #Alteramos para 'recusado_ciclo' para o motor saltar apenas neste ciclo
+            cliente.status = 'recusado_ciclo'
+            db.session.commit()
+
+            #Passa em cascata para o próximo candidato da lista
+            print(f"⏭️ [TIMEOUT] A saltar para o próximo candidato da fila...")
+            #Ajuste do motor passando ao id original de agendamento
+            executar_algoritmo_caca_vagas(id_agendamento=id_vaga_cancelada)
+
+        else:
+            print(f"✅ [TIMEOUT] Verificação concluída: O cliente {cliente.nome if cliente else id_cliente} respondeu a tempo ou foi modificado.")
 
 @admin_bp.route('/cancelar/<int:id_agendamento>', methods=['POST'])
 def cancelar_ou_noshow(id_agendamento: int):
@@ -215,3 +259,93 @@ def cancelar_ou_noshow(id_agendamento: int):
     if not sucesso:
         return "Erro: Agendamento não encontrado ou já cancelado.", 400
     return redirect(url_for('admin.dashboard'))
+
+#ROTINA MATINAL DE LEMBRETES (APScheduler)
+
+def lembretes_matinais():
+    """Rotina executada às 08:00h para notificar os clientes do dia."""
+    import os
+    import time
+    from datetime import date
+    import requests
+    import re
+    from src import db
+    from src.models import Agendamentos
+
+    hoje_str = date.today().isoformat()
+    print(f"[LEMBRETES] A iniciar varredura para o dia: {hoje_str}")
+
+    EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
+    EVOLUTION_KEY = os.getenv("FLASK_SECRET_KEY", "chave_local")
+
+    url_envio = f"{EVOLUTION_API_URL}/message/sendText/BF-Barbearia"
+    headers = {"Content-Type": "application/json", "apikey": EVOLUTION_KEY}
+
+    try:
+        print("[LEMBRETES] RECONSTRUÇÃO: A limpar trancas antigas do Caça-Vagas...")
+        Agendamentos.query.filter(
+            Agendamentos.status.in_(['recusado_ciclo', 'em_proposta'])
+        ).update({Agendamentos.status: 'ativo'}, synchronize_session=False)
+        db.session.commit()
+        print("[LEMBRETES] ✨ Manutenção concluída. Base de dados pronta para o novo dia!")
+
+        #Filtragem pela data e status
+        agendamentos_hoje = Agendamentos.query.filter_by(
+            data=hoje_str,
+            status='ativo'
+        ).all()
+
+        if not agendamentos_hoje:
+            print("[LEMBRETES] Nenhum agendamento ativo encontrado para hoje.")
+            return
+
+        total = len(agendamentos_hoje)
+        print(f"[LEMBRETES] Encontrados {total} lembretes para enviar.")
+
+        #Loop de disparos de lembretes
+        for indice, agendamento in enumerate(agendamentos_hoje, start=1):
+            cliente_nome = agendamento.nome if agendamento.nome else "Cliente"
+            #Validação: ignora caso cliente não tenha telemóvel registado
+            try:
+                if not agendamento.telemovel:
+                    print(f"[LEMBRETES] ⚠️ [{indice}/{total}] Ignorado: {cliente_nome} não tem telemóvel registado.")
+                    continue
+
+                telemovel_limpo = re.sub(r'\D', '', agendamento.telemovel)
+
+                if not telemovel_limpo.startswith('351') and len(telemovel_limpo) == 9:
+                    telemovel_limpo = f"351{telemovel_limpo}"
+
+                texto_lembrete = f"Olá, {agendamento.nome}! Passamos para lembrar que o seu corte está agendado para hoje, às {agendamento.hora}. Até já! ✂️"
+
+                headers = {
+                    "Content-Type": "application/json", "apikey": EVOLUTION_KEY}
+
+                payload = {
+                    "number": telemovel_limpo,
+                    "options": {
+                        "delay": 1200,
+                        "presence": "composing"
+                    },
+                    "text": texto_lembrete
+                }
+
+                resposta = requests.post(url_envio, json=payload, headers=headers, timeout=10)
+
+                if resposta.status_code in [200, 201]:
+                    print(f"[LEMBRETES] ✅ [{indice}/{total}] Enviado com sucesso para {agendamento.nome}.")
+                else:
+                    print(f"[LEMBRETES] ⚠️ Erro no envio para {agendamento.nome}: Status {resposta.status_code}")
+
+            except requests.exceptions.RequestException as e_api:
+                # Captura falhas de rede específicas do requests (ex: Ngrok offline)
+                print(f"[LEMBRETES] ❌ [{indice}/{total}] Falha de conexão ao enviar para {cliente_nome}: {str(e_api)}")
+            except Exception as erro_envio:
+                print(f"[LEMBRETES] 💥 Falha de rede ao contactar a Evolution API: {erro_envio}")
+
+            #Delay de 2 segundos entre mensagens
+            if indice < total:
+                time.sleep(2)
+
+    except Exception as e:
+        print(f"[LEMBRETES] Erro geral ao processar base de dados: {e}")
