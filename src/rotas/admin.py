@@ -1,6 +1,6 @@
 import re
 import requests
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import session, Blueprint, render_template, request, redirect, url_for
 from datetime import datetime
 import os
 from src import db
@@ -8,6 +8,42 @@ from src.models import Agendamentos
 
 # Inicializa o Blueprint do administrador
 admin_bp = Blueprint('admin', __name__)
+
+# 🔒 SENTINELA DE SEGURANÇA: Protege todas as rotas do Blueprint /admin
+@admin_bp.before_request
+def verificar_autenticacao():
+    if request.endpoint == 'admin.login':
+        return
+
+    # Caso a chave 'admin_logado' não estiver na sessão do browser, expulsa para o login
+    if not session.get('admin_logado'):
+        return redirect(url_for('admin.login'))
+
+# 🔑 ROTA DA TELA DE LOGIN & PROCESSAMENTO
+@admin_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    erro = None
+    if request.method == 'POST':
+        utilizador_submetido = request.form.get('utilizador', '').strip()
+        senha_submetida = request.form.get('senha', '')
+
+        #Leitura do .env
+        admin = os.getenv("ADMIN_USER", "chave_local")
+        admin_password = os.getenv("SENHA", "chave_local")
+
+        #Validação das credenciais de acesso
+        if utilizador_submetido == admin and senha_submetida == admin_password:
+            session['admin_logado'] = True
+            return redirect(url_for('admin.dashboard'))
+        else:
+            erro = "Utilizador ou Password incorretos!"
+    return render_template("admin/login.html", erro=erro)
+
+# 🚪 ROTA DE LOGOUT (SAIR COM SEGURANÇA)
+@admin_bp.route('/logout')
+def logout():
+    session.pop('admin_logado', None) #Destrói a tranca da sessão
+    return redirect(url_for('admin.login'))
 
 @admin_bp.route('/')
 def dashboard() -> str:
