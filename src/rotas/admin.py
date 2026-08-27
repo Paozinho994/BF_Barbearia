@@ -206,7 +206,7 @@ def executar_algoritmo_caca_vagas(id_agendamento: int, id_cliente_ignorar: int =
 
         #Temporizador
         tz = pytz.timezone("Europe/Lisbon")
-        tempo_limite = datetime.now(tz) + timedelta(minutes=2)
+        tempo_limite = datetime.now(tz) + timedelta(minutes=30)
         app_real = current_app._get_current_object()
 
         from src import scheduler
