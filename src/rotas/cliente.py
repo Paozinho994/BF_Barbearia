@@ -1,3 +1,4 @@
+import hmac
 import re
 import requests
 import random
@@ -101,7 +102,8 @@ def agendamento():
         "nome": nome_cliente,
         "telemovel": telemovel,
         "servico": servico_escolhido,
-        "canal": canal_notificacao
+        "canal": canal_notificacao,
+        "token_cancelamento": novo_agendamento.token
     }
     disparar_notificacao_inteligente(dados_notificacao, origem="ONLINE")
 
@@ -122,9 +124,9 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
         print(f"➔ [{origem}] Nenhuma notificação digital agendada por opção do cliente/sistema.")
         return
 
-    id_agendamento = agendamento.get('id', 0)
-
-    link_cancelamento = f"http://bf-barbearia.onrender.com/cancelar_vaga/{id_agendamento}"
+    token_seguro = agendamento.get('token_cancelamento', '')
+    URL_SaaS = os.getenv("URL_PUBLICO_SaaS", "http://bf-barbearia.onrender.com")
+    link_cancelamento = f"{URL_SaaS}/cancelar_vaga/{token_seguro}"
 
     nome_cliente = agendamento.get('nome', '')
     servico_escolhido = agendamento.get('servico', 'Serviço')
@@ -254,12 +256,14 @@ def verificar_disponibilidade():
 
     return jsonify(horarios_livres)
 
-@cliente_bp.route('/webhook/confirmar-antecipacao', methods=['GET', 'POST'])
+@cliente_bp.route('/webhook/confirmar-antecipacao', methods=['POST'])
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 
-    if request.method == 'GET':
-        return jsonify({"status": "operacional", "mensagem": "Webhook"}), 200
+    token_recebido = request.headers.get('X-Webhook-Token', '')
+    token_oficial = os.getenv('WEBHOOK_TOKEN', "")
+    if not token_oficial or not hmac.compare_digest(token_recebido, token_oficial):
+        return jsonify({"status": "erro", "motivo": "Não autorizado"}), 403
 
     dados_webhook = request.get_json(silent=True) or {}
 
@@ -292,7 +296,7 @@ def confirmar_antecipacao():
 
     #Procura pelo agendamento ATIVO deste cliente (o mais próximo no futuro)
     cliente_alvo = Agendamentos.query.filter(
-        Agendamentos.telemovel.like(f"%{telemovel_remetente}%"),
+        Agendamentos.telemovel == telemovel_remetente,
         Agendamentos.status == "em_proposta",
     ).order_by(Agendamentos.data).first()
 
@@ -322,6 +326,36 @@ def confirmar_antecipacao():
         except Exception:
             pass
 
+        #Mensagem de agradecimento pela resposta
+        try:
+            import os
+            import requests
+            import re
+            API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
+            API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
+            url_feedback = f"{API_BASE}/message/sendText/BF-Barbearia"
+
+            telemovel_limpo = re.sub(r'\D', '', cliente_alvo.telemovel)
+            telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
+            texto_feedback_nao = (
+                f"Obrigado pela tua resposta, {cliente_alvo.nome}! 👍\n\n"
+                f"Fica descansado, o teu corte mantém-se rigorosamente agendado para "
+                f"**dia {cliente_alvo.data} às {cliente_alvo.hora}**. Vemo-nos brevemente! 💈"
+            )
+
+            payload_feedback = {
+                "number": telemovel_api,
+                "options": {"delay": 1000, "presence": "composing"},
+                "text": texto_feedback_nao
+            }
+            headers_feedback = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
+
+            #Disparo de cortesia
+            requests.post(url_feedback, json=payload_feedback, headers=headers_feedback, timeout=5)
+            print(f"[WEBHOOK] Mensagem de cortesia enviada para {cliente_alvo.nome} (Recusa).")
+        except Exception as e_feedback:
+            print(f"⚠️ [WEBHOOK] Falha ao enviar mensagem de cortesia do NÃO: {e_feedback}")
+
         #Dispara o algoritmo para o próximo candidato da fila
         if vaga_original:
             from src.rotas.admin import executar_algoritmo_caca_vagas
@@ -330,25 +364,26 @@ def confirmar_antecipacao():
         return jsonify({"status": "sucesso", "mensagem": "Recusa processada e vaga passada ao próximo cliente."}), 200
 
 
-    vaga_disponivel = Agendamentos.query.filter_by(
-        hora=cliente_alvo.hora,
-        barbeiro=cliente_alvo.barbeiro,
-        status='cancelado'
-    ).order_by(Agendamentos.data).first()
-
-    if not vaga_disponivel:
-        #Caso a vaga já tenha sido preenchida no site público
-        print(f"⏳ Vaga de antecipação já preenchida ou expirada para {cliente_alvo.nome}")
-        return jsonify({"status": "esgotado", "motivo": "A vaga de antecipação já foi preenchida ou o tempo expirou."}), 200
-
-    #Armazenamento de dados para o LOG e NOTIFICAÇÃO
-    data_antiga = cliente_alvo.data
-    data_nova = vaga_disponivel.data
-    hora_corte = cliente_alvo.hora
-    id_cliente_proposto = cliente_alvo.id
-
-    #Transação no PostgreSQL
     try:
+        vaga_disponivel = Agendamentos.query.with_for_update().filter_by(
+            hora=cliente_alvo.hora,
+            barbeiro=cliente_alvo.barbeiro,
+            status='cancelado'
+        ).order_by(Agendamentos.data).first()
+
+        if not vaga_disponivel:
+        #Caso a vaga já tenha sido preenchida no site público
+            print(f"⏳ Bloqueado! A vaga já foi ocupada manualmente pelo barbeiro.")
+            cliente_alvo.status = 'ativo'
+            db.session.commit()
+            return jsonify({"status": "Esgotado", "motivo": "A vaga de antecipação já foi preenchida ou o tempo expirou."}), 200
+
+        #Armazenamento de dados para o LOG e NOTIFICAÇÃO
+        data_antiga = cliente_alvo.data
+        data_nova = vaga_disponivel.data
+        hora_corte = cliente_alvo.hora
+        id_cliente_proposto = cliente_alvo.id
+
         # A vaga que estava cancelada passa a ser do cliente que aceitou
         vaga_disponivel.nome = cliente_alvo.nome
         vaga_disponivel.telemovel = cliente_alvo.telemovel
@@ -366,13 +401,47 @@ def confirmar_antecipacao():
         print(f"\n⚡ [SUCESSO!] Cliente {vaga_disponivel.nome} antecipado com sucesso!")
         print(f"De: {data_antiga} -> Para: {data_nova} às {hora_corte}\n")
 
+        #📊 ✅ REGISTO DE FATURAÇÃO RECUPERADA DINÂMICA
+
+        try:
+            from src.models import HistoricoCacaVagas
+            from datetime import date
+
+            preco_servico = 15.0 #Padrão de fallback caso a string mude
+            servico_limpo = str(vaga_disponivel.servico).lower().strip()
+
+            if "corte+barba+sobrancelha" in servico_limpo or "19" in servico_limpo:
+                preco_servico = 19.0
+            elif "corte+barba" in servico_limpo or "18" in servico_limpo:
+                preco_servico = 18.0
+            elif "corte+bigode+sobrancelha" in servico_limpo or "15" in servico_limpo:
+                preco_servico = 15.0
+            elif "corte+sobrancelha" in servico_limpo or "14" in servico_limpo:
+                preco_servico = 14.0
+            elif "corte zero+barba" in servico_limpo or "corte de cabelo" in servico_limpo or "13" in servico_limpo:
+                preco_servico = 13.0
+            elif "corte m60" in servico_limpo or "10" in servico_limpo:
+                preco_servico = 10.0
+            elif "barba" in servico_limpo or "7" in servico_limpo:
+                preco_servico = 7.0
+
+            novo_registo_sucesso = HistoricoCacaVagas(
+                data_recuperacao=date.today().isoformat(),
+                nome_cliente=vaga_disponivel.nome,
+                barbeiro=vaga_disponivel.barbeiro,
+                horario_recuperado=hora_corte,
+                valor=preco_servico,
+            )
+            db.session.add(novo_registo_sucesso)
+            db.session.commit()
+            print(f"📊 [AUDITORIA] Sucesso registado: {vaga_disponivel.nome} poupou {preco_servico}€ à barbearia!")
+        except Exception as e_auditoria:
+            print(f"⚠️ [AUDITORIA] Erro na gravação do histórico financeiro: {e_auditoria}")
+
         from src import scheduler
         try:
             scheduler.remove_job(f"timeout_caca_vagas_{id_cliente_proposto}")
-            print(f"⏱️ [WEBHOOK] Temporizador de 30 minutos cancelado para {vaga_disponivel.nome}.")
-        except Exception as e:
-            #Caso o job já tenha rodado ao mesmo tempo ou não seja encontrado
-            print(f"⚠️ [WEBHOOK] Não foi possível remover o temporizador: {e}")
+        except Exception: pass
 
         #Cenário Confirmação
         #Dispara uma confirmação de sucesso para o telemovel do cliente
@@ -457,74 +526,25 @@ def enviar_alerta_troca_concluida(agendamento: dict):
     except Exception as erro:
         print(f"❌ [ERRO CRÍTICO] Falha de rede ao comunicar com a Evolution API: {erro}")
 
-@cliente_bp.route('/cancelar_vaga/<int:id_agendamento>', methods=['GET', 'POST'])
-def cancelamento_publico(id_agendamento: int):
+@cliente_bp.route('/cancelar_vaga/<string:token>', methods=['GET', 'POST'])
+def cancelamento_publico(token: int):
     """Página pública que permite ao cliente cancelar o seu próprio corte e ativa o Caça-Vagas."""
 
     from src.rotas.admin import executar_algoritmo_caca_vagas
 
-    #Procura o agendamento ativo no PostgreSQL pelo ID
-    agendamento = db.session.get(Agendamentos, id_agendamento)
+    #Procura o agendamento ativo no PostgreSQL pelo Token
+    agendamento = Agendamentos.query.filter_by(token_cancelamento=token, status='ativo').first_or_404()
 
-    if not agendamento or agendamento.status != 'ativo':
-        return "<h1 style='font-family:sans-serif; text-align:center; margin-top:5rem;'>⚠️ Esta marcação já não se encontra ativa ou não existe!</h1>", 400
     if request.method == 'POST':
         #Captura os dados antes de cancelar para o ecrã de sucesso
         nome_cliente = agendamento.nome
         data_corte = agendamento.data
         hora_corte = agendamento.hora
+        id_agendamento = agendamento.id
 
         #Reutilização
         executar_algoritmo_caca_vagas(id_agendamento)
 
-        return f'''
-        <!DOCTYPE html>
-        <html lang="pt">
-        <head>
-            <meta charset="UTF-8">
-            <!-- Comando mágico para adaptar instantaneamente ao ecrã do telemóvel -->
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>BF Barbearia - Cancelado</title>
-        </head>
-        <body style="margin: 0; padding: 0; background: #0a0a0a;">
-            <div style="text-align: center; font-family: sans-serif; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%; box-sizing: border-box;">
-                    <h2 style="color: #22c55e; margin-top: 0; font-size: 1.8rem;">Cancelado com Sucesso! ✅</h2>
-                    <p style="color: #e5e5e5; font-size: 1.05rem; line-height: 1.5;">Olá <strong>{nome_cliente}</strong>, o teu horário de dia <strong>{data_corte}</strong> às <strong>{hora_corte}</strong> foi libertado com sucesso no sistema.</p>
-                    <p style="color: #a3a3a3; font-size: 0.95rem;">Obrigado por avisares com antecedência! 💈</p>
-                    <br>
-                    <a href="/" style="display: inline-block; background: #262626; color: #f59e0b; text-decoration: none; font-weight: bold; padding: 12px 24px; border-radius: 8px; border: 1px solid #404040; width: 100%; box-sizing: border-box; font-size: 1rem;">
-                        ← Voltar ao Início
-                    </name_cliente>
-                </div>
-            </div>
-        </body>
-        </html>
-        '''
+        return render_template('cliente/cancelado_post.html', nome=nome_cliente, data_corte=data_corte, hora=hora_corte)
 
-    #Ecrã GET
-    return f'''
-    <!DOCTYPE html>
-    <html lang="pt">
-    <head>
-        <meta charset="UTF-8">
-        <!-- O COMANDO MÁGICO: Força o telemóvel a ajustar a escala do ecrã para 100% automaticamente -->
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BF Barbearia - Cancelar</title>
-    </head>
-    <body style="margin: 0; padding: 0; background: #0a0a0a;">
-        <div style="text-align: center; font-family: sans-serif; padding: 3rem; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-            <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%;">
-                <h2 style="color: #f59e0b; margin-top: 0;">BF Barbearia</h2>
-                <p style="color: #a3a3a3;">Olá <strong>{agendamento.nome}</strong>, confirmas o cancelamento do teu agendamento?</p>
-                <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {agendamento.data} | ⏰ Hora: {agendamento.hora}</p>
-                <form method="POST">
-                    <button type="submit" style="background: #dc2626; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem;">
-                        ❌ Confirmar Cancelamento Definitivo
-                    </button>
-                </form>
-            </div>
-        </div>
-    </body>
-    </html>
-    '''
+    return render_template('cliente/cancelar_get.html', agendamento=agendamento)

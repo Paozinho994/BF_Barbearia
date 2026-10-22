@@ -176,6 +176,28 @@ def executar_algoritmo_caca_vagas(id_agendamento: int, id_cliente_ignorar: int =
     hora_cancelada = agendamento.hora
     barbeiro_cancelado = agendamento.barbeiro
 
+    #Tranca de Silêncio Noturno (Entre as 22h00 e as 07h59)
+    agora = datetime.now()
+    if agora.hour >= 22 or agora.hour < 8:
+        if agendamento.status == 'ativo':
+            agendamento.status = 'cancelado'
+            db.session.commit()
+        print(f"[JANELA INTELIGENTE] 🔕 Silêncio Noturno ({agora.strftime('%H:%M')}). Vaga libertada, mas convites congelados.")
+        return True
+
+    #Tranca de Margem de Antecedência mínima (30 Minutos)
+    if data_cancelada == agora.strftime('%Y-%m-%d'):
+        try:
+            hora_vaga_obj = datetime.strptime(f"{data_cancelada} {hora_cancelada}", "%Y-%m-%d %H:%M")
+            if hora_vaga_obj - agora < timedelta(minutes=30):
+                if agendamento.status == 'ativo':
+                    agendamento.status = 'cancelado'
+                    db.session.commit()
+                print(f"[JANELA INTELIGENTE] ⏱️ Vaga das {hora_cancelada} está muito em cima da hora. Convites abortados.")
+                return True
+        except ValueError:
+            pass
+
     #Libertar o horário mudando para 'cancelado'
     if agendamento.status == 'ativo':
         agendamento.status = 'cancelado'
@@ -222,7 +244,7 @@ def executar_algoritmo_caca_vagas(id_agendamento: int, id_cliente_ignorar: int =
             payload = {
                 "number": telemovel_api,
                 "options": {
-                    "delay": 1500,
+                    "delay": 3000,
                     "presence": "composing"
                 },
                 "text": texto_convite_whatsapp
@@ -279,6 +301,40 @@ def verificar_timeout_caca_vagas(id_cliente: int, data_vaga: str, hora_vaga: str
             cliente.status = 'recusado_ciclo'
             db.session.commit()
 
+            #⏳ Alerta de cortesia de 30 minutos esgotados
+            try:
+                import os
+                import requests
+                import re
+
+                API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
+                API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
+                URL_EVOLUTION = f"{API_BASE}/message/sendText/BF-Barbearia"
+
+                telemovel_limpo = re.sub(r'\D', '', cliente.telemovel)
+                telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
+
+                texto_timeout = (
+                    f"Olá, {cliente.nome}! ⏳\n\n"
+                    f"O limite de **30 minutos** para uma resposta terminou."
+                    f"Mas não te preocupes. O teu corte continua **100% confirmado para o dia {cliente.data} às {cliente.hora}**. Até breve! 💈"
+                )
+
+                payload = {
+                    "number": telemovel_api,
+                    "options": {
+                        "delay": 1500,
+                        "presence": "composing"
+                    },
+                    "text": texto_timeout
+                }
+                headers = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
+
+                requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=5)
+                print(f"⏱️ [TIMEOUT] Notificação de tempo limite enviada com sucesso para {cliente.nome}.")
+            except Exception as e_msg:
+                print(f"⚠️ [TIMEOUT] Falha ao enviar mensagem de tempo esgotado: {e_msg}")
+
             #Passa em cascata para o próximo candidato da lista
             print(f"⏭️ [TIMEOUT] A saltar para o próximo candidato da fila...")
             #Ajuste do motor passando ao id original de agendamento
@@ -305,6 +361,7 @@ def lembretes_matinais():
     from datetime import date
     import requests
     import re
+    import random
     from src import db
     from src.models import Agendamentos
 
@@ -352,7 +409,11 @@ def lembretes_matinais():
                 if not telemovel_limpo.startswith('351') and len(telemovel_limpo) == 9:
                     telemovel_limpo = f"351{telemovel_limpo}"
 
-                texto_lembrete = f"Olá, {agendamento.nome}! Passamos para lembrar que o seu corte está agendado para hoje, às {agendamento.hora}. Até já! ✂️"
+                saudacoes = ["Olá,", "Viva,", "Boas,", "Como estás,"]
+                lembretes = [f"Passamos para lembrar que o teu corte está agendado para", f"Vimos recordar-te que o teu corte está agendado para", f"Informamos que o teu corte está agendado para"]
+                despedida = ["Até já! ✂️", "Contamos contigo! 💈", "Abraço de toda a equipe!"]
+
+                texto_lembrete = f"{random.choice(saudacoes)} {agendamento.nome}! {random.choice(lembretes)} hoje, às {agendamento.hora}. {random.choice(despedida)}"
 
                 headers = {
                     "Content-Type": "application/json", "apikey": EVOLUTION_KEY}
@@ -360,7 +421,7 @@ def lembretes_matinais():
                 payload = {
                     "number": telemovel_limpo,
                     "options": {
-                        "delay": 1200,
+                        "delay": 1500,
                         "presence": "composing"
                     },
                     "text": texto_lembrete
@@ -381,7 +442,56 @@ def lembretes_matinais():
 
             #Delay de 2 segundos entre mensagens
             if indice < total:
-                time.sleep(2)
+                tempo_espera = random.randint(2, 10)
+                time.sleep(tempo_espera)
 
     except Exception as e:
         print(f"[LEMBRETES] Erro geral ao processar base de dados: {e}")
+
+@admin_bp.route('/relatorio')
+def ver_relatorio():
+    from src.models import HistoricoCacaVagas
+    from src import db
+
+    #Encontra todas as antecipações bem sucedidas gravadas pelo Caça-Vagas
+    historico = HistoricoCacaVagas.query.order_by(HistoricoCacaVagas.id.desc()).all()
+
+    #Calcula as métricas totais em tempo real
+    total_antecipacoes = len(historico)
+    total_faturado_recuperado = sum(registo.valor for registo in historico)
+
+    #Retorna os dados numa página simples
+    return f"""
+    <html>
+    <head>
+        <title>Auditoria de Ganhos</title>
+        <style>
+            body {{ font-family: sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }}
+            .card {{ background: #171717; border: 1px solid #262626; padding: 20px; border-radius: 8px; max-width: 600px; margin-bottom: 20px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #262626; font-size: 0.875rem; }}
+            th {{ color: #eab308; }}
+        </style>
+    </head>
+    <body>
+        <h2>📊 Relatório Mensal de Faturação Recuperada</h2>
+        <div class="card">
+            <p>🔄 Total de Vagas Salvas pelo Caça-Vagas: <strong>{total_antecipacoes}</strong></p>
+            <p>💰 Total de Faturação Recuperada: <strong style="color: #4ade80; font-size: 1.25rem;">{total_faturado_recuperado:.2f}€</strong></p>
+        </div>
+
+        <h3>📋 Histórico Detalhado de Antecipações:</h3>
+        <table>
+            <tr>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Barbeiro</th>
+                <th>Hora Vaga</th>
+                <th>Valor Ganho</th>
+            </tr>
+            {"".join(f"<tr><td>{r.data_recuperacao}</td><td>{r.nome_cliente}</td><td>{'Bruno' if r.barbeiro == 'barbeiro_1' else 'Matheus'}</td><td>{r.horario_recuperado}</td><td style='color:#4ade80;'>{r.valor:.2f}€</td></tr>" for r in historico)}
+        </table>
+        <br><a href="/admin/" style="color: #a3a3a3; text-decoration: none; font-size: 0.813rem;">← Voltar ao Painel</a>
+    </body>
+    </html>
+    """
