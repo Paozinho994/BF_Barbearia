@@ -1,6 +1,7 @@
 import re
 import requests
-from flask import session, Blueprint, render_template, request, redirect, url_for
+from flask import session, Blueprint, render_template, request, redirect, url_for, abort
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 from src import db
@@ -19,8 +20,6 @@ def verificar_autenticacao():
     if not session.get('admin_logado'):
         return redirect(url_for('admin.login'))
 
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask import abort
 # 🔑 ROTA DA TELA DE LOGIN & PROCESSAMENTO
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
