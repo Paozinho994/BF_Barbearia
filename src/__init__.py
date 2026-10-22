@@ -49,6 +49,10 @@ def create_app() -> Flask:
     app.register_blueprint(cliente_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
+    with app.app_context():
+        from src.models import Agendamentos, HistoricoCacaVagas
+        db.create_all()
+        print("\n[POSTGRESQL] 💎 Tabelas verificadas com sucesso!")
 
     scheduler.remove_all_jobs()
 
