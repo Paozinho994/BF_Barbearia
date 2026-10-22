@@ -19,6 +19,8 @@ def verificar_autenticacao():
     if not session.get('admin_logado'):
         return redirect(url_for('admin.login'))
 
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import abort
 # 🔑 ROTA DA TELA DE LOGIN & PROCESSAMENTO
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -28,11 +30,17 @@ def login():
         senha_submetida = request.form.get('senha', '')
 
         #Leitura do .env
-        admin = os.getenv("ADMIN_USER", "chave_local")
-        admin_password = os.getenv("SENHA", "chave_local")
+        admin = os.getenv("ADMIN_USER")
+        admin_password = os.getenv("SENHA")
+
+        if not admin or not admin_password:
+            print("🚨 [SEGURANÇA] ADMIN_USER ou SENHA não configurados!")
+            return abort(500, "Erro interno de configuração de segurança.")
+
+        senha_oficial = generate_password_hash(admin_password)
 
         #Validação das credenciais de acesso
-        if utilizador_submetido == admin and senha_submetida == admin_password:
+        if utilizador_submetido == admin and check_password_hash(senha_oficial, senha_submetida):
             session['admin_logado'] = True
             return redirect(url_for('admin.dashboard'))
         else:
@@ -281,7 +289,6 @@ def executar_algoritmo_caca_vagas(id_agendamento: int, id_cliente_ignorar: int =
 
     else:
         print("💡 [MOTOR CENTRAL] Sem clientes em fila de espera para este horário. Vaga aberta no site.")
-        Agendamentos.query.filter_by(status='recusado_ciclo').update({Agendamentos.status: 'ativo'})
         db.session.commit()
     return True
 
