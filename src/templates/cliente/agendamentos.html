@@ -288,7 +288,14 @@
             }
 
             try {
-                const resposta = await fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`);
+                const tokenCSRF = document.querySelector('input[name="csrf_token"]').value;
+                const resposta = await fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRFToken': tokenCSRF
+                    }
+                });
+
                 const horariosLivres = await resposta.json();
                 const valorSelecionado = selectHora.value;
 

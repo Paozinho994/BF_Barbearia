@@ -6,6 +6,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for
 from src import db
 from src.models import Agendamentos
+from src import csrf
 
 # Inicializa o Blueprint do cliente público
 cliente_bp = Blueprint('cliente', __name__)
@@ -258,6 +259,7 @@ def verificar_disponibilidade():
     return jsonify(horarios_livres)
 
 @cliente_bp.route('/webhook/confirmar-antecipacao', methods=['POST'])
+@csrf.exempt()
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 
@@ -528,7 +530,7 @@ def enviar_alerta_troca_concluida(agendamento: dict):
         print(f"❌ [ERRO CRÍTICO] Falha de rede ao comunicar com a Evolution API: {erro}")
 
 @cliente_bp.route('/cancelar_vaga/<string:token>', methods=['GET', 'POST'])
-def cancelamento_publico(token: int):
+def cancelamento_publico(token: str):
     """Página pública que permite ao cliente cancelar o seu próprio corte e ativa o Caça-Vagas."""
 
     from src.rotas.admin import executar_algoritmo_caca_vagas
