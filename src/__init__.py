@@ -43,6 +43,7 @@ def create_app() -> Flask:
         SESSION_COOKIE_SAMESITE='Lax'
     )
 
+    from src.models import Agendamentos, HistoricoCacaVagas
     db.init_app(app)
     csrf.init_app(app)
 
@@ -55,7 +56,6 @@ def create_app() -> Flask:
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     with app.app_context():
-        from src.models import Agendamentos, HistoricoCacaVagas
         db.create_all()
         print("\n[POSTGRESQL] 💎 Tabelas verificadas com sucesso!")
 
