@@ -93,6 +93,7 @@ def agendamento():
     db.session.commit()
     #Captura o ID real gerado pela base de dados PostgreSQL
     id_gerado = novo_agendamento.id
+    token_gerado = novo_agendamento.token_cancelamento
 
     dados_notificacao = {
         "id": id_gerado,
@@ -103,7 +104,7 @@ def agendamento():
         "telemovel": telemovel,
         "servico": servico_escolhido,
         "canal": canal_notificacao,
-        "token_cancelamento": novo_agendamento.token
+        "token_cancelamento": token_gerado
     }
     disparar_notificacao_inteligente(dados_notificacao, origem="ONLINE")
 
