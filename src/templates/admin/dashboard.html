@@ -101,8 +101,9 @@
                             <span class="badge-whatsapp" style="background-color: #f3f4f6; color: #6b7280;">🔕 Alerta Inativo</span>
                         {% endif %}
 
-                        <!-- Gatilho Caça-Vafas PostgreSQL -->
+                        <!-- Gatilho Caça-Vagas PostgreSQL -->
                         <form action="/admin/cancelar/{{ agendamento.id }}" method="POST" style="margin: 0;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <button type="submit" style="background: #fee2e2; color: #991b1b; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;" onclick="return confirm('Confirmar cancelamento? Isto vai libertar o horário e acionar o Caça-Vagas.')">
                                 ❌ Cancelar
                             </button>
@@ -129,6 +130,7 @@
 
             <!-- Formulário adaptado para a rota em português -->
             <form action="/admin/marcar" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="form-group">
                     <label class="form-label">Nome do Cliente</label>
                     <input type="text" name="nome" required class="form-input" placeholder="Ex: Rodrigo Silva">

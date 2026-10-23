@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from flask_wtf.csrf import CSRFProtect
 
 # Carrega as variáveis de ambiente do ficheiro .env global
 load_dotenv()
 db = SQLAlchemy()
-
+csrf = CSRFProtect()
 scheduler = BackgroundScheduler(timezone="Europe/Lisbon")
 
 def executar_lembrete_com_contexto(app_instancia):
@@ -36,10 +37,14 @@ def create_app() -> Flask:
     # Configurações modernas de segurança e ambiente
     app.config.update(
         SECRET_KEY=os.getenv("FLASK_SECRET_KEY", "chave-secreta-provisoria-para-dev"),
-        ENV=os.getenv("FLASK_ENV", "production")
+        ENV=os.getenv("FLASK_ENV", "production"),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SAMESITE='Lax'
     )
 
     db.init_app(app)
+    csrf.init_app(app)
 
     # Registo dos Blueprints (Módulos de Rotas Isolados)
     from src.rotas.cliente import cliente_bp

@@ -6,3 +6,4 @@ gunicorn==22.0.0
 requests==2.32.3
 APSCheduler>=3.10.0
 pytz
+Flask-WTF>=1.2.0

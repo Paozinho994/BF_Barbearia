@@ -176,6 +176,7 @@
 
         <!-- Formulário de Agendamento Público -->
         <form action="/agendar" method="POST" class="lista-container" style="width: 100%; padding: 1rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
             <!-- 1. ESCOLHER SERVIÇO -->
             <div class="form-group" style="margin-bottom: 1.5rem;">
