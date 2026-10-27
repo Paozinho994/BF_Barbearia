@@ -10,8 +10,8 @@
 <div style="text-align: center; font-family: sans-serif; padding: 3rem; background: #0a0a0a; color: #fff; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
     <div style="background: #171717; padding: 2.5rem; border-radius: 12px; border: 1px solid #262626; max-width: 450px; width: 90%;">
         <h2 style="color: #f59e0b; margin-top: 0;">BF Barbearia</h2>
-        <p style="color: #a3a3a3;">Olá <strong>{agendamento.nome}</strong>, confirmas o cancelamento do teu agendamento?</p>
-        <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {agendamento.data} | ⏰ Hora: {agendamento.hora}</p>
+        <p style="color: #a3a3a3;">Olá <strong>{{agendamento.nome}}</strong>, confirmas o cancelamento do teu agendamento?</p>
+        <p style="background: #262626; padding: 10px; border-radius: 6px; font-weight: bold;">📅 Dia: {{agendamento.data}} | ⏰ Hora: {{agendamento.hora}}</p>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" style="background: #dc2626; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem;">
