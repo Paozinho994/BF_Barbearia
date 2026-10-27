@@ -171,6 +171,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
         API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia")
         API_BASE_CLEAN = API_BASE.replace("/message/sendText/BF-Barbearia", "").rstrip('/')
         URL_EVOLUTION = f"{API_BASE_CLEAN}/message/sendText/BF-Barbearia"
+        API_KEY_EVOLUTION = os.getenv("EVOLUTION_API_KEY", os.getenv("FLASK_SECRET_KEY", ""))
 
         payload = {
             "number": telemovel_api,
@@ -334,6 +335,7 @@ def confirmar_antecipacao():
             API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
             API_BASE_CLEAN = API_BASE.replace("/message/sendText/BF-Barbearia", "").rstrip('/')
             url_feedback = f"{API_BASE_CLEAN}/message/sendText/BF-Barbearia"
+            API_KEY_EVOLUTION = os.getenv("EVOLUTION_API_KEY", os.getenv("FLASK_SECRET_KEY", ""))
 
             telemovel_limpo = re.sub(r'\D', '', cliente_alvo.telemovel)
             telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
