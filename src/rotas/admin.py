@@ -158,7 +158,7 @@ def criar_marcacao_manual():
 
     dados_notificacao = {
         "id": nova_marcacao.id, "data": data_escolhida, "barbeiro": barbeiro_escolhido, "hora": hora_corte,
-        "nome": nome_cliente, "telemovel": telemovel, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao
+        "nome": nome_cliente, "telemovel": telemovel_limpo, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao
     }
     from src.rotas.cliente import disparar_notificacao_inteligente
     disparar_notificacao_inteligente(dados_notificacao, origem="MANUAL/BALCÃO")

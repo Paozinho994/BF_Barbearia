@@ -2,6 +2,7 @@ import hmac
 import re
 import requests
 import random
+import os
 from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for
 from src import db
@@ -167,10 +168,9 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
         print(mensagem_whatsapp)
         print("------------------------------------------")
 
-        import os
         API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev/message/sendText/BF-Barbearia")
-        API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
-        URL_EVOLUTION = f"{API_BASE}/message/sendText/BF-Barbearia"
+        API_BASE_CLEAN = API_BASE.replace("/message/sendText/BF-Barbearia", "").rstrip('/')
+        URL_EVOLUTION = f"{API_BASE_CLEAN}/message/sendText/BF-Barbearia"
 
         payload = {
             "number": telemovel_api,
@@ -188,7 +188,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
 
         try:
             # Faz o disparo HTTP local para o motor Node.js enviar para o teu telemóvel
-            resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=8)
+            resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=6)
 
             if resposta.status_code in [200, 201]:
                 print(f"🚀 [WHATSAPP REAL] Mensagem entregue com sucesso para {nome_cliente} ({telemovel_api})")
@@ -331,12 +331,9 @@ def confirmar_antecipacao():
 
         #Mensagem de agradecimento pela resposta
         try:
-            import os
-            import requests
-            import re
             API_BASE = os.getenv("EVOLUTION_API_URL", "https://obtuse-pasty-traitor.ngrok-free.dev")
-            API_KEY_EVOLUTION = os.getenv("FLASK_SECRET_KEY", "chave_local")
-            url_feedback = f"{API_BASE}/message/sendText/BF-Barbearia"
+            API_BASE_CLEAN = API_BASE.replace("/message/sendText/BF-Barbearia", "").rstrip('/')
+            url_feedback = f"{API_BASE_CLEAN}/message/sendText/BF-Barbearia"
 
             telemovel_limpo = re.sub(r'\D', '', cliente_alvo.telemovel)
             telemovel_api = f"351{telemovel_limpo}" if len(telemovel_limpo) == 9 else telemovel_limpo
