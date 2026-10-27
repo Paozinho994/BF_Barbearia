@@ -54,6 +54,7 @@ def create_app() -> Flask:
     # A rota do cliente será a raiz (/) e a do admin terá o prefixo (/admin)
     app.register_blueprint(cliente_bp)
     app.register_blueprint(admin_bp, url_prefix='/admin')
+    csrf.exempt('src.rotas.cliente.confirmar_antecipacao')
 
     with app.app_context():
         db.create_all()

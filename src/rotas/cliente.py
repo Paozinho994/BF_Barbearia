@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from src import db
 from src.models import Agendamentos
 from src import csrf
+from flask_wtf.csrf import CSRFProtect
 
 # Inicializa o Blueprint do cliente público
 cliente_bp = Blueprint('cliente', __name__)
@@ -259,7 +260,6 @@ def verificar_disponibilidade():
     return jsonify(horarios_livres)
 
 @cliente_bp.route('/webhook/confirmar-antecipacao', methods=['POST'])
-@csrf.exempt()
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 

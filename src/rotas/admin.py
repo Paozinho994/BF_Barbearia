@@ -109,7 +109,6 @@ def dashboard() -> str:
 @admin_bp.route('/marcar', methods=['POST'])
 def criar_marcacao_manual():
     """Recebe e processa os dados do formulário de marcação manual."""
-    from src.rotas.cliente import disparar_notificacao_inteligente
 
     #Captura os dados enviados pelo formulário HTML de forma segura
     nome_cliente: str = request.form.get('nome', '').strip()
@@ -161,6 +160,7 @@ def criar_marcacao_manual():
         "id": nova_marcacao.id, "data": data_escolhida, "barbeiro": barbeiro_escolhido, "hora": hora_corte,
         "nome": nome_cliente, "telemovel": telemovel, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao
     }
+    from src.rotas.cliente import disparar_notificacao_inteligente
     disparar_notificacao_inteligente(dados_notificacao, origem="MANUAL/BALCÃO")
 
     return redirect(url_for('admin.dashboard'))
