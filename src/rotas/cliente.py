@@ -189,7 +189,7 @@ def disparar_notificacao_inteligente(agendamento: dict, origem: str = "ONLINE"):
 
         try:
             # Faz o disparo HTTP local para o motor Node.js enviar para o teu telemóvel
-            resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=6)
+            resposta = requests.post(URL_EVOLUTION, json=payload, headers=headers, timeout=12)
 
             if resposta.status_code in [200, 201]:
                 print(f"🚀 [WHATSAPP REAL] Mensagem entregue com sucesso para {nome_cliente} ({telemovel_api})")
@@ -353,7 +353,7 @@ def confirmar_antecipacao():
             headers_feedback = {"apikey": API_KEY_EVOLUTION, "Content-Type": "application/json"}
 
             #Disparo de cortesia
-            requests.post(url_feedback, json=payload_feedback, headers=headers_feedback, timeout=5)
+            requests.post(url_feedback, json=payload_feedback, headers=headers_feedback, timeout=12)
             print(f"[WEBHOOK] Mensagem de cortesia enviada para {cliente_alvo.nome} (Recusa).")
         except Exception as e_feedback:
             print(f"⚠️ [WEBHOOK] Falha ao enviar mensagem de cortesia do NÃO: {e_feedback}")
@@ -518,7 +518,7 @@ def enviar_alerta_troca_concluida(agendamento: dict):
     try:
         print(f"\n➔ [MOTOR] A disparar WhatsApp real de sucesso para {agendamento['nome']} ({jid_final})...")
 
-        resposta = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        resposta = requests.post(endpoint, json=payload, headers=headers, timeout=12)
 
         if resposta.status_code in [200, 201]:
             print(f"✅ [WHATSAPP] Mensagem de troca concluída entregue com sucesso!")

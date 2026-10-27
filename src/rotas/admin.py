@@ -155,10 +155,11 @@ def criar_marcacao_manual():
     )
     db.session.add(nova_marcacao)
     db.session.commit()
+    token_gerado = nova_marcacao.token_cancelamento
 
     dados_notificacao = {
         "id": nova_marcacao.id, "data": data_escolhida, "barbeiro": barbeiro_escolhido, "hora": hora_corte,
-        "nome": nome_cliente, "telemovel": telemovel_limpo, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao
+        "nome": nome_cliente, "telemovel": telemovel_limpo, "servico": "Marcação Manual (Telefone)", "canal": canal_notificacao, "token_cancelamento": token_gerado
     }
     from src.rotas.cliente import disparar_notificacao_inteligente
     disparar_notificacao_inteligente(dados_notificacao, origem="MANUAL/BALCÃO")
