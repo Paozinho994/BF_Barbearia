@@ -264,9 +264,10 @@ def verificar_disponibilidade():
 def confirmar_antecipacao():
     """Recebe a resposta 'SIM' via Webhook do WhatsApp/SMS, localiza o cliente pelo telemóvel e efetua a troca automática de horário no PostgreSQL."""
 
-    token_recebido = request.headers.get('X-Webhook-Token', '')
+    token_recebido = request.args.get('token', '')
     token_oficial = os.getenv('WEBHOOK_TOKEN', "")
     if not token_oficial or not hmac.compare_digest(token_recebido, token_oficial):
+        print("❌ [WEBHOOK] Token inválido ou não autorizado!")
         return jsonify({"status": "erro", "motivo": "Não autorizado"}), 403
 
     dados_webhook = request.get_json(silent=True) or {}
