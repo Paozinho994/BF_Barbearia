@@ -1,77 +1,118 @@
-# 💈 BF Barbearia - Sistema de Agendamento Inteligente & Caça-Vagas Automático
+# 💈 BF Barbearia - Smart SaaS Scheduling & Autonomous Spot-Recovery System
+ 
+🌐 **Live Application URL:** [https://bf-barbearia.onrender.com/](https://bf-barbearia.onrender.com/)
 
-> 🌐 **Aceda à aplicação em produção:** [https://bf-barbearia.onrender.com/](https://bf-barbearia.onrender.com/)
+This repository contains the full enterprise-ready ecosystem for **BF Barbearia**, a multi-tiered SaaS platform designed to completely automate barbershop scheduling, eliminate no-shows, and optimize slot utilization. 
 
-Este é o ecossistema digital da **BF Barbearia**, desenvolvido para automatizar o fluxo de marcações de clientes, combater *no-shows* (faltas comparência) e otimizar a agenda dos profissionais através de um algoritmo reativo de antecipação alimentado por APIs de mensagens instantâneas (WhatsApp/SMS).
-
----
-
-## 🚀 Funcionalidades Principais
-
-*   **Calendário Inteligente Anti-erros**: Bloqueio reativo de datas no passado e ocultação automática de horários que já passaram no próprio dia.
-*   **Gestão Dinâmica de Folgas**: Fecho automatizado do sistema aos Domingos e Segundas-Feiras com avisos em tempo real na interface do utilizador.
-*   **Distribuição Justa de Vagas**: Algoritmo de balanceamento de carga de trabalho entre barbeiros quando o cliente seleciona a opção "Qualquer Profissional".
-*   **Cancelamento Autónomo via Token**: Links dinâmicos únicos baseados no ID do PostgreSQL enviados nas notificações. O cliente pode cancelar a sua vaga em 2 cliques sem necessidade de logins ou passwords.
-*   **Algoritmo Caça-Vagas**: Sempre que uma vaga é cancelada (pelo cliente ou administrador), o sistema acorda em background, pesquisa cronologicamente na base de dados por clientes agendados em dias futuros para o mesmo horário e dispara um convite automático via WhatsApp/SMS oferecendo a antecipação.
+By operating via a direct local interface with the **Evolution API**, this system achieves **absolute zero message cost**, completely bypassing Meta's official WhatsApp Business API messaging fees. It features an autonomous backend engine that drives reactive queue manipulation to rescue cancelled slots in real time.
 
 ---
 
-## 🛠️ Stack Tecnológica
+## 🚀 Core Features & Advanced Algorithms
 
-*   **Backend**: Python (Flask)
-*   **Base de Dados**: PostgreSQL (Produção no Render) & Prisma ORM
-*   **Engine de WhatsApp**: Evolution API (Node.js / Express)
-*   **Interface**: HTML5, CSS3, JavaScript (Consultas Assíncronas / Fetch API)
+### 1. The Spot-Recovery Engine ("Caça-Vagas")
+When a booked slot is cancelled via the customer UI or administrative dashboard, a background transactional worker wakes up. 
+* It scans the PostgreSQL database chronologically to find clients booked for identical time slots in future dates.
+* It selects the most optimal candidates and triggers sequential, time-limited (30-minute window) invitations via WhatsApp.
+* It utilizes a stateful cascade state machine (`active` ➔ `em_proposta` ➔ `ativo` / `caça_vagas_recusado`) to move through the queue autonomously if a user rejects the offer or times out.
+
+### 2. Multi-Tenant Concurrency Control (Anti-Overbooking)
+To prevent double-booking when the autonomous WhatsApp engine and manual reception desk interact simultaneously:
+* The system injects a strict database-level row lock using SQLAlchemy's `.with_for_update()`.
+* The target PostgreSQL row is locked for the duration of the "YES" confirmation transaction block, forcing concurrent reads into a thread-safe queue.
+
+### 3. Passwordless Tokenized Cancellations
+* Eliminates the barrier of user logins and passwords. 
+* Cancellations are authorized via dynamic, cryptographically secure URL tokens generated using `secrets.token_urlsafe(16)`.
+* This completely eliminates resource-scanning vulnerabilities (sequential ID scraping) and complies with modern privacy-first architectures.
+
+### 4. Smart Calendar Engine & Load Balancing
+* **Time-Gated Guard**: Prevents historical scheduling by cross-referencing timestamps with `Europe/Lisbon` timezone constraints.
+* **Workload Balancer**: Features a dynamic routing algorithm that distributes appointments equally among available staff when the client selects "Any Barber (Fastest)".
 
 ---
 
-## 📦 Arquitetura do Ecossistema
+## 🛠️ Technological Stack
 
-O projeto opera sob uma arquitetura de microsserviços interligados localmente e na nuvem:
-1.  **Flask App (Porta 5000)**: Responsável pelas rotas, regras de negócio da barbearia, interface do cliente e painel administrativo.
-2.  **Evolution API (Porta 8080)**: REST API em Node.js que interage de forma direta com o protocolo do WhatsApp, simulando digitação humana para proteção contra bloqueios (Anti-Ban).
+* **Backend & Business Logic**: Python (Flask via the *Application Factory* design pattern)
+* **Database Layer & Schema Migrations**: Remote PostgreSQL (Production) / Ephemeral cloud PostgreSQL mapped via Prisma Data Platform / Flask-SQLAlchemy
+* **Async Engine**: APScheduler (`BackgroundScheduler`) managing concurrent temporal threads
+* **Messaging Middleware**: Evolution API v2 (Node.js / Express Architecture)
+* **Frontend**: HTML5, CSS3, Vanilla JavaScript (Asynchronous requests via Fetch API / DOM manipulation)
 
 ---
 
-## 🔧 Configuração e Instalação Local
+## 📦 Microservices Architecture
 
-### 1. Pré-requisitos
+The system operates across a distributed multi-runtime environment:
+1. **Flask Application (Production Port)**: Handles HTTP routing, core business constraints, Jinja2 template compiling, and database transactional updates.
+2. **Evolution API Microservice (Port 8080)**: An independent Node.js REST API handling raw WhatsApp socket management, mimicking human interaction behaviors (such as automated typing delay statuses) to prevent carrier anti-spam bans.
+
+---
+
+## 🔧 Local Environment Installation
+
+### 1. Prerequisites
 *   Python 3.10+
 *   Node.js v20+
 
-### 2. Clonar o Repositório e Instalar Dependências do Flask
+### 2. CSetup the Flask Backend
 ```bash
+# Clone the repository
 git clone https://github.com
 cd BF_Barbearia
+
+# Checkout the development branch
+git checkout dev
+
+# Initialize virtual environment
 python -m venv .venv
-source .venv/bin/activate  # No Windows: .venv\Scripts\activate
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+
+# Install required dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configurar as Variáveis de Ambiente
-Cria um ficheiro `.env` na raiz do projeto Flask com o seguinte modelo (conforme explicitado no `.env.example`):
-```text
-FLASK_SECRET_KEY=A_TUA_CHAVE_SECRETA
-DATABASE_URL=postgresql://utilizador:senha@servidor/banco
-AUTHENTICATION_API_KEY=CHAVE_DE_CONEXAO_DA_API
+### 3. Environment Configuration
+Create a `.env` file in the root directory of the application:
+```env
+# Flask Core
+FLASK_SECRET_KEY=your_secure_session_key_here
+
+# Database URIs
+DATABASE_URL=postgresql://user:password@host:port/dbname
+DATABASE_PRIVATE_URL=postgresql://user:password@internal-host:port/dbname
+
+# Microservice Integrations
+EVOLUTION_API_URL=https://ngrok-free.dev
+AUTHENTICATION_API_KEY=your_shared_evolution_api_key
+
+# Webhook Protections
+WEBHOOK_TOKEN=your_secure_hmac_handshake_token
+URL_PUBLICO_SaaS=https://onrender.com
 ```
 
-### 4. Executar a Aplicação
+### 4. Database Initialization
 ```bash
+# Push schema schemas and validate tables
+npx prisma db push --schema=./prisma/postgresql-schema.prisma
 python app.py
 ```
-O site ficará disponível localmente em `http://localhost:5000`.
+The site will spin up locally on `http://127.0.0.1:5000`.
 
 ---
 
-## 🔐 Segurança & Boas Práticas
+## 🔐 Implemented Security Measures (Audit Compliance)
 
-*   **Proteção de Credenciais**: Ficheiros de ambiente contendo strings de conexão de bases de dados e tokens privados estão devidamente blindados e mapeados no `.gitignore`.
-*   **Prevenção contra SQL Injection**: Toda a persistência e consulta de dados é realizada através do SQLAlchemy ORM, mitigando riscos de injeção de código malicioso.
-*   **Tratamento de Strings**: Normalização rigorosa de números telefónicos no backend para o padrão internacional (E.164) antes do envio para gateways externos.
+The architecture strictly complies with standard web vulnerability mitigation practices:
+* **XSS Eradication**: All text displays were migrated out of raw python strings into strict, auto-escaped Jinja2 blocks.
+* **Timing Attack Hardening**: Administrative and webhook routing keys are evaluated via `secrets.compare_digest` to prevent byte-by-byte timing attacks on string variables.
+* **CSRF Mitigation**: Global application protection is governed by `Flask-WTF`. Asynchronous JavaScript actions inject the security signing via the `X-CSRFToken` header.
+* **Cookie Isolation**: Session storage cookies are hardened with strict production parameters: `HttpOnly=True`, `Secure=True`, and `SameSite='Lax'`.
+* **Webhook Signature Validation**: The endpoint `/webhook/confirmar-antecipacao` runs a secure token comparison, immediately blocking arbitrary wildcards or spoofed network inputs.
 
 ---
 
-## 📄 Licença
+## 📄 License
 
-Este projeto está sob a licença MIT. Sinta-se à vontade para clonar e utilizar como base para os seus próprios sistemas de agendamento.
+This software ecosystem is open-source, licensed under the **MIT License**.
