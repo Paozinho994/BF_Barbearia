@@ -321,7 +321,8 @@ def confirmar_antecipacao():
 
         #Reverte o cliente para 'ativo' no seu horário original
         id_cliente_proposto = cliente_alvo.id
-        cliente_alvo.status = 'recusado_ciclo'
+        cliente_alvo.status = 'ativo'
+        cliente_alvo.canal = 'caça_vagas_recusado'
         db.session.commit()
 
         #Cancelamento do temporizador após recessão de resposta do cliente
