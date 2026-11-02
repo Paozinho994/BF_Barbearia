@@ -225,23 +225,41 @@ def verificar_disponibilidade():
 
     # CONSULTAS POSTGRESQL: Procuramos apenas agendamentos ativos para calcular as vagas livres
     if barbeiro_req != "qualquer":
-        agendamentos_ocupados = Agendamentos.query.filter_by(
-            data=data_req, barbeiro=barbeiro_req, status='ativo'
+        agendamentos_ocupados = Agendamentos.query.filter(
+            Agendamentos.data == data_req,
+            Agendamentos.barbeiro == barbeiro_req,
+            Agendamentos.status.in_(['ativo', 'em_proposta'])
         ).all()
         horas_ocupadas = [m.hora for m in agendamentos_ocupados]
-        horarios_livres = [hora for hora in HORARIOS if hora not in horas_ocupadas]
     else:
         # Lógica contra colisões para a opção 'Qualquer Um'
-        ocupadas_bruno = [m.hora for m in Agendamentos.query.filter_by(data=data_req, barbeiro='barbeiro_1', status='ativo').all()]
-        ocupadas_matheus = [m.hora for m in Agendamentos.query.filter_by(data=data_req, barbeiro='barbeiro_2', status='ativo').all()]
+        ocupadas_bruno = [m.hora for m in Agendamentos.query.filter(
+            Agendamentos.data == data_req,
+            Agendamentos.barbeiro == 'barbeiro_1',
+            Agendamentos.status.in_(['ativo', 'em_proposta'])
+        ).all()]
+        ocupadas_matheus = [m.hora for m in Agendamentos.query.filter(
+            Agendamentos.data == data_req,
+            Agendamentos.barbeiro == 'barbeiro_2',
+            Agendamentos.status.in_(['ativo', 'em_proposta'])
+        ).all()]
+        horas_ocupadas = [hora for hora in HORARIOS if hora in ocupadas_bruno and hora in ocupadas_matheus]
 
-        hora_cheia = [
-            hora for hora in HORARIOS
-            if hora in ocupadas_bruno and hora in ocupadas_matheus
-        ]
+    vagas_canceladas = Agendamentos.query.filter_by(data=data_req, barbeiro=barbeiro_req if barbeiro_req != "qualquer" else None, status='cancelado').all()
+    for vaga in vagas_canceladas:
+        fila_espera = Agendamentos.query.filter(
+            Agendamentos.hora == vaga.hora,
+            Agendamentos.barbeiro == vaga.barbeiro,
+            Agendamentos.status == 'ativo',
+            Agendamentos.data > vaga.data,
+            Agendamentos.canal != 'caça_vagas_recusado'
+        ).first()
 
-        #Filtragem total da lista, mantendo apenas os horarios livres
-        horarios_livres = [hora for hora in HORARIOS if hora not in hora_cheia]
+        if fila_espera and vaga.hora not in horas_ocupadas:
+            horas_ocupadas.append(vaga.hora)
+
+    #Filtragem total da lista, mantendo apenas os horarios livres
+    horarios_livres = [hora for hora in HORARIOS if hora not in horas_ocupadas]
 
     #Bloqueio de agendamentos no passado
     if data_req < data_hoje_str:
@@ -328,7 +346,7 @@ def confirmar_antecipacao():
         #Cancelamento do temporizador após recessão de resposta do cliente
         from src import scheduler
         try:
-            scheduler.remove_job(f"timeout_caca_vagas_{id_cliente_proposto}")
+            scheduler.remove_job(f"timeout_caca_vagas_{cliente_alvo.id}")
         except Exception:
             pass
 
@@ -377,7 +395,7 @@ def confirmar_antecipacao():
 
         if not vaga_disponivel:
         #Caso a vaga já tenha sido preenchida no site público
-            print(f"⏳ Bloqueado! A vaga já foi ocupada manualmente pelo barbeiro.")
+            print(f"⏳ Bloqueado! O tempo expirou ou o slot foi alterado.")
             cliente_alvo.status = 'ativo'
             db.session.commit()
             return jsonify({"status": "Esgotado", "motivo": "A vaga de antecipação já foi preenchida ou o tempo expirou."}), 200
@@ -392,13 +410,14 @@ def confirmar_antecipacao():
         vaga_disponivel.nome = cliente_alvo.nome
         vaga_disponivel.telemovel = cliente_alvo.telemovel
         vaga_disponivel.servico = cliente_alvo.servico
-        vaga_disponivel.canal = cliente_alvo.canal
+        vaga_disponivel.canal = 'whatsapp'
         vaga_disponivel.status = 'ativo'
 
         # O horário antigo do cliente é libertado (fica marcado como cancelado para reativar o ciclo)
         cliente_alvo.status = 'cancelado'
         cliente_alvo.nome = None
         cliente_alvo.telemovel = None
+        cliente_alvo.canal = 'nenhum'
 
         db.session.commit()
 
@@ -458,8 +477,6 @@ def confirmar_antecipacao():
             "data": data_nova,
             "hora": hora_corte,
             "barbeiro": vaga_disponivel.barbeiro,
-            "servico": vaga_disponivel.servico,
-            "canal": vaga_disponivel.canal
         }
 
         # Função auxiliar para enviar a mensagem de parabéns
