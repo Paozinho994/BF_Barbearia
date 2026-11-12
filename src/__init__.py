@@ -12,67 +12,57 @@ db = SQLAlchemy()
 csrf = CSRFProtect()
 scheduler = BackgroundScheduler(timezone="Europe/Lisbon")
 
-def executar_lembrete_com_contexto(app_instancia):
-    """Garante que a query corre com o contexto correto da aplicação passada por parâmetro."""
+
+def _executar_lembretes(app_instancia):
+    """Corre os lembretes matinais dentro do contexto da app."""
     with app_instancia.app_context():
-        from src.rotas.admin import lembretes_matinais
+        from src.services.lembretes import lembretes_matinais
         lembretes_matinais()
+
+
+def _iniciar_scheduler(app: Flask) -> None:
+    """Agenda a rotina diária das 08:00 e arranca o scheduler."""
+    scheduler.remove_all_jobs()
+    scheduler.add_job(
+        _executar_lembretes,
+        trigger=CronTrigger(hour=8, minute=0, second=0),
+        id="lembretes_diarios_08am",
+        args=[app],
+        replace_existing=True,
+    )
+    scheduler.start()
+    app.config["SCHEDULER_INICIADO"] = True
+
 
 def create_app() -> Flask:
     """Factory function para inicializar e configurar a aplicação Flask."""
-
-    # Definimos explicitamente onde estão os templates para evitar erros de caminhos
-    app = Flask(
-        __name__,
-        template_folder='templates',
-        static_folder='static'
-    )
+    app = Flask(__name__, template_folder="templates", static_folder="static")
 
     uri = os.getenv("DATABASE_URL", "sqlite:///bf_barbearia_fallback.db")
     if uri and uri.startswith("postgres://"):
         uri = uri.replace("postgres://", "postgresql://", 1)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = uri
-
-    # Configurações modernas de segurança e ambiente
     app.config.update(
+        SQLALCHEMY_DATABASE_URI=uri,
         SECRET_KEY=os.getenv("FLASK_SECRET_KEY", "chave-secreta-provisoria-para-dev"),
-        ENV=os.getenv("FLASK_ENV", "production"),
+        DEBUG=os.getenv("FLASK_DEBUG", "0") == "1",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_SAMESITE='Lax'
+        SESSION_COOKIE_SAMESITE="Lax",
     )
 
-    from src.models import Agendamentos, HistoricoCacaVagas
     db.init_app(app)
     csrf.init_app(app)
 
-    # Registo dos Blueprints (Módulos de Rotas Isolados)
     from src.rotas.cliente import cliente_bp
     from src.rotas.admin import admin_bp
 
-    # A rota do cliente será a raiz (/) e a do admin terá o prefixo (/admin)
     app.register_blueprint(cliente_bp)
-    app.register_blueprint(admin_bp, url_prefix='/admin')
-    csrf.exempt('src.rotas.cliente.confirmar_antecipacao')
+    app.register_blueprint(admin_bp, url_prefix="/admin")
+    csrf.exempt("cliente.confirmar_antecipacao")
 
     with app.app_context():
         db.create_all()
-        print("\n[POSTGRESQL] 💎 Tabelas verificadas com sucesso!")
 
-    scheduler.remove_all_jobs()
-
-        # Agenda a tarefa para correr rigorosamente às 08:00h da manhã todos os dias
-    scheduler.add_job(
-        executar_lembrete_com_contexto,
-        trigger=CronTrigger(hour=8, minute=0, second=0),
-        id="lembretes_diarios_08am",
-        args=[app],  # Passa a app como argumento
-        replace_existing=True
-    )
-
-    scheduler.start()
-    app.config['SCHEDULER_INICIADO'] = True
-    print("\n[SISTEMA] 🚀 Motor APScheduler acoplado e trancado com sucesso!")
-
+    _iniciar_scheduler(app)
     return app

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auditoria de Ganhos</title>
+    <style>
+        body { font-family: sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }
+        .card { background: #171717; border: 1px solid #262626; padding: 20px; border-radius: 8px; max-width: 600px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #262626; font-size: 0.875rem; }
+        th { color: #eab308; }
+    </style>
+</head>
+<body>
+    <h2>📊 Relatório Mensal de Faturação Recuperada</h2>
+    <div class="card">
+        <p>🔄 Total de Vagas Salvas pelo Caça-Vagas: <strong>{{ total_antecipacoes }}</strong></p>
+        <p>💰 Total de Faturação Recuperada: <strong style="color: #4ade80; font-size: 1.25rem;">{{ "%.2f"|format(total_faturado) }}€</strong></p>
+    </div>
+
+    <h3>📋 Histórico Detalhado de Antecipações:</h3>
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Barbeiro</th>
+            <th>Hora Vaga</th>
+            <th>Valor Ganho</th>
+        </tr>
+        {% for r in historico %}
+        <tr>
+            <td>{{ r.data_recuperacao }}</td>
+            <td>{{ r.nome_cliente }}</td>
+            <td>{{ "Bruno" if r.barbeiro == "barbeiro_1" else "Matheus" }}</td>
+            <td>{{ r.horario_recuperado }}</td>
+            <td style="color:#4ade80;">{{ "%.2f"|format(r.valor) }}€</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <br><a href="/admin/" style="color: #a3a3a3; text-decoration: none; font-size: 0.813rem;">← Voltar ao Painel</a>
+</body>
+</html>
