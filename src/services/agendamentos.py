@@ -45,7 +45,7 @@ SERVICO_MANUAL = "Marcação Manual (Telefone)"
 def criar_agendamento_online(dados: dict):
     """Valida e grava um agendamento feito no site público.
 
-    Retorna (agendamento, None) em sucesso ou (None, (html_erro, 400)).
+    Retorna (agendamento, None) em sucesso ou (None, {"mensagem": str, "status": int}).
     """
     agora = datetime.now()
     hoje_str = agora.strftime(FORMATO_DATA)
@@ -56,21 +56,26 @@ def criar_agendamento_online(dados: dict):
     barbeiro = dados["barbeiro"]
 
     if data < hoje_str or (data == hoje_str and hora <= hora_agora_str):
-        return None, ("<h1>Erro: Não é permitido efetuar agendamentos para datas ou horários passados!</h1>", 400)
+        return None, _erro("Não é permitido efetuar agendamentos para datas ou horários passados.")
+
+    if not _data_valida_e_aberta(data):
+        return None, _erro("A data selecionada é inválida ou a barbearia está fechada nesse dia.")
 
     if not whatsapp.telemovel_valido(dados["telemovel"], estrito=True):
-        return None, ("<h1>Erro: O número de telemóvel introduzido é inválido. "
-                      "Certifique-se de que tem 9 dígitos e começa por 91, 92, 93, 96 ou 97!</h1>", 400)
+        return None, _erro(
+            "O número de telemóvel introduzido é inválido. "
+            "Certifique-se de que tem 9 dígitos e começa por 91, 92, 93, 96 ou 97."
+        )
 
     if not all([dados["servico"], data, barbeiro, hora, dados["nome"], dados["telemovel"]]):
-        return None, ("Erro: Todos os campos obrigatórios devem ser preenchidos.", 400)
+        return None, _erro("Todos os campos obrigatórios devem ser preenchidos.")
 
     barbeiro_final = _escolher_barbeiro(data, hora, barbeiro)
     if barbeiro_final is None:
-        return None, ("<h1>Erro: Este horário acabou de ser preenchido. Por favor, escolha outra hora!</h1>", 400)
+        return None, _erro("Este horário acabou de ser preenchido. Por favor, escolha outra hora.")
 
     if barbeiro != "qualquer" and _horario_ocupado(data, hora, barbeiro_final):
-        return None, ("<h1>Erro: Este horário acabou de ser preenchido por outro cliente há poucos segundos!</h1>", 400)
+        return None, _erro("Este horário acabou de ser preenchido por outro cliente há poucos segundos.")
 
     agendamento = Agendamentos(
         data=data,
@@ -89,13 +94,14 @@ def criar_agendamento_online(dados: dict):
     return agendamento, None
 
 
-def _escolher_barbeiro(data: str, hora: str, preferencia: str) -> str | None:
+def _escolher_barbeiro(data: str, hora: str, preferencia: str,
+                       excluir_id: int | None = None) -> str | None:
     """Resolve o barbeiro final. Devolve None se a hora estiver lotada (opção 'qualquer')."""
     if preferencia != "qualquer":
         return preferencia
 
     ocupados = {
-        barbeiro: _horario_ocupado(data, hora, barbeiro)
+        barbeiro: _horario_ocupado(data, hora, barbeiro, excluir_id=excluir_id)
         for barbeiro in BARBEIROS_INDIVIDUAIS
     }
     if all(ocupados.values()):
@@ -107,10 +113,27 @@ def _escolher_barbeiro(data: str, hora: str, preferencia: str) -> str | None:
     return random.choice(list(BARBEIROS_INDIVIDUAIS))
 
 
-def _horario_ocupado(data: str, hora: str, barbeiro: str) -> bool:
-    return Agendamentos.query.filter_by(
+def _horario_ocupado(data: str, hora: str, barbeiro: str,
+                     excluir_id: int | None = None) -> bool:
+    query = Agendamentos.query.filter_by(
         data=data, hora=hora, barbeiro=barbeiro, status=STATUS_ATIVO
-    ).first() is not None
+    )
+    if excluir_id is not None:
+        query = query.filter(Agendamentos.id != excluir_id)
+    return query.first() is not None
+
+
+def _erro(mensagem: str, status: int = 400) -> dict:
+    """Formato padronizado de erro devolvido pelos serviços."""
+    return {"mensagem": mensagem, "status": status}
+
+
+def _data_valida_e_aberta(data: str) -> bool:
+    """True se a data está em formato válido e não calha num dia de folga."""
+    try:
+        return datetime.strptime(data, FORMATO_DATA).weekday() not in DIAS_FECHADOS
+    except (ValueError, TypeError):
+        return False
 
 
 def _dados_notificacao(agendamento: Agendamentos) -> dict:
@@ -184,6 +207,64 @@ def buscar_por_token_cancelamento(token: str) -> Agendamentos | None:
     ).first()
 
 
+def cancelar_agendamento_publico(token: str):
+    """Cancela um agendamento através do link público (token) e dispara o Caça-Vagas.
+
+    Retorna (agendamento, None) ou (None, erro).
+    """
+    agendamento = buscar_por_token_cancelamento(token)
+    if not agendamento:
+        return None, _erro("Agendamento não encontrado ou já cancelado.", status=404)
+
+    executar_algoritmo_caca_vagas(agendamento.id)
+    return agendamento, None
+
+
+def reagendar_agendamento(token: str, dados: dict):
+    """Move um agendamento ativo para um novo dia/hora/barbeiro via link público.
+
+    Retorna (agendamento, None) ou (None, erro).
+    """
+    agendamento = buscar_por_token_cancelamento(token)
+    if not agendamento:
+        return None, _erro("Agendamento não encontrado ou já cancelado.", status=404)
+
+    agora = datetime.now()
+    hoje_str = agora.strftime(FORMATO_DATA)
+    hora_agora_str = agora.strftime(FORMATO_HORA)
+
+    data = dados.get("data", "")
+    hora = dados.get("hora", "")
+    barbeiro = dados.get("barbeiro", "")
+
+    if not all([data, hora, barbeiro]):
+        return None, _erro("Todos os campos obrigatórios devem ser preenchidos.")
+
+    if data < hoje_str or (data == hoje_str and hora <= hora_agora_str):
+        return None, _erro("Não é permitido reagendar para datas ou horários passados.")
+
+    if not _data_valida_e_aberta(data):
+        return None, _erro("A data selecionada é inválida ou a barbearia está fechada nesse dia.")
+
+    barbeiro_final = _escolher_barbeiro(data, hora, barbeiro, excluir_id=agendamento.id)
+    if barbeiro_final is None:
+        return None, _erro("Este horário acabou de ser preenchido. Por favor, escolha outra hora.")
+
+    if barbeiro != "qualquer" and _horario_ocupado(data, hora, barbeiro_final,
+                                                  excluir_id=agendamento.id):
+        return None, _erro("Este horário acabou de ser preenchido por outro cliente há poucos segundos.")
+
+    agendamento.data = data
+    agendamento.hora = hora
+    agendamento.barbeiro = barbeiro_final
+    db.session.commit()
+
+    whatsapp.disparar_notificacao_inteligente(
+        _dados_notificacao(agendamento), origem="REAGENDAMENTO"
+    )
+    return agendamento, None
+
+
 # ---------------------------------------------------------------------------
 # Marcação manual (painel admin)
 # ---------------------------------------------------------------------------
@@ -191,22 +272,22 @@ def buscar_por_token_cancelamento(token: str) -> Agendamentos | None:
 def criar_marcacao_manual(dados: dict):
     """Cria uma marcação registada pelo barbeiro no balcão/painel.
 
-    Retorna (agendamento, None) ou (None, (html_erro, 400)).
+    Retorna (agendamento, None) ou (None, {"mensagem": str, "status": int}).
     """
     if not all([dados["nome"], dados["telemovel"], dados["hora"]]):
-        return None, ("Erro: Todos os campos são obrigatórios.", 400)
+        return None, _erro("Todos os campos são obrigatórios.")
 
     telemovel_limpo = re.sub(r"\D", "", dados["telemovel"])
     if not re.match(r"^9\d{8}$", telemovel_limpo):
-        return None, (
-            "<h1>Erro: O número de telemóvel introduzido no painel é inválido!</h1>"
-            "<p>Certifique-se de que inseriu exatamente 9 dígitos e que o número começa por 9 (ex: 912345678).</p>"
-            "<br><a href='javascript:history.back()'>← Voltar Atrás</a>",
-            400,
+        return None, _erro(
+            "O número de telemóvel introduzido é inválido. "
+            "Certifique-se de que inseriu exatamente 9 dígitos e que o número começa por 9 (ex: 912345678)."
         )
 
     if _horario_ocupado(dados["data"], dados["hora"], dados["barbeiro"]):
-        return None, (f"<h1>Erro: O horário {dados['hora']} para esta data já foi preenchido por outro cliente!</h1>", 400)
+        return None, _erro(
+            f"O horário {dados['hora']} para esta data já foi preenchido por outro cliente."
+        )
 
     agendamento = Agendamentos(
         data=dados["data"],

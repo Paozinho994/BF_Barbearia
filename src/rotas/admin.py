@@ -76,8 +76,7 @@ def criar_marcacao_manual():
 
     _, erro = agendamentos.criar_marcacao_manual(dados)
     if erro:
-        corpo, status = erro
-        return corpo, status
+        return render_template("cliente/erro.html", mensagem=erro["mensagem"]), erro["status"]
 
     return redirect(url_for("admin.dashboard"))
 

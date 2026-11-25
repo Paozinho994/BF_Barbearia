@@ -4,10 +4,10 @@ import hmac
 import os
 from datetime import datetime
 
-from flask import Blueprint, jsonify, render_template, request, abort
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, abort
 
 from src.constants import HORARIOS
-from src.services import agendamentos
+from src.services import agendamentos, whatsapp
 
 # Inicializa o Blueprint do cliente público
 cliente_bp = Blueprint("cliente", __name__)
@@ -38,8 +38,7 @@ def agendar():
 
     agendamento, erro = agendamentos.criar_agendamento_online(dados)
     if erro:
-        corpo, status = erro
-        return corpo, status
+        return render_template("cliente/erro.html", mensagem=erro["mensagem"]), erro["status"]
 
     return render_template(
         "cliente/sucesso.html",
@@ -75,21 +74,55 @@ def confirmar_antecipacao():
 
 @cliente_bp.route("/cancelar_vaga/<string:token>", methods=["GET", "POST"])
 def cancelamento_publico(token: str):
-    """Página pública de cancelamento que aciona o Caça-Vagas."""
+    """Página de self-service: o cliente pode ver, reagendar ou cancelar o agendamento."""
     agendamento = agendamentos.buscar_por_token_cancelamento(token)
     if not agendamento:
         abort(404)
 
     if request.method == "POST":
-        nome_cliente = agendamento.nome
-        data_corte = agendamento.data
-        hora_corte = agendamento.hora
-        agendamentos.executar_algoritmo_caca_vagas(agendamento.id)
-        return render_template(
-            "cliente/cancelado_post.html",
-            nome_cliente=nome_cliente,
-            data_corte=data_corte,
-            hora_corte=hora_corte,
-        )
+        acao = request.form.get("acao", "")
 
-    return render_template("cliente/cancelar_get.html", agendamento=agendamento)
+        if acao == "cancelar":
+            nome_cliente = agendamento.nome
+            data_corte = agendamento.data
+            hora_corte = agendamento.hora
+            agendamentos.executar_algoritmo_caca_vagas(agendamento.id)
+            return render_template(
+                "cliente/cancelado_post.html",
+                nome_cliente=nome_cliente,
+                data_corte=data_corte,
+                hora_corte=hora_corte,
+            )
+
+        if acao == "reagendar":
+            dados = {
+                "data": request.form.get("data", ""),
+                "hora": request.form.get("hora", ""),
+                "barbeiro": request.form.get("barbeiro", ""),
+            }
+            agendamento, erro = agendamentos.reagendar_agendamento(token, dados)
+            if erro:
+                return render_template(
+                    "cliente/gerir.html",
+                    agendamento=agendamentos.buscar_por_token_cancelamento(token),
+                    horarios=HORARIOS,
+                    data_atual_sistema=datetime.now().strftime("%Y-%m-%d"),
+                    erro=erro["mensagem"],
+                ), erro["status"]
+            flash(
+                f"✅ Agendamento reagendado com sucesso! Novo horário: "
+                f"{agendamento.data} às {agendamento.hora} "
+                f"com {whatsapp.nome_barbeiro(agendamento.barbeiro)}.",
+                "sucesso",
+            )
+            return redirect(url_for("cliente.cancelamento_publico", token=token))
+
+        abort(400)
+
+    return render_template(
+        "cliente/gerir.html",
+        agendamento=agendamento,
+        horarios=HORARIOS,
+        data_atual_sistema=datetime.now().strftime("%Y-%m-%d"),
+        erro=None,
+    )

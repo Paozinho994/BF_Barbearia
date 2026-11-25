@@ -30,7 +30,8 @@ def _iniciar_scheduler(app: Flask) -> None:
         args=[app],
         replace_existing=True,
     )
-    scheduler.start()
+    if not scheduler.running:
+        scheduler.start()
     app.config["SCHEDULER_INICIADO"] = True
 
 
@@ -56,9 +57,11 @@ def create_app() -> Flask:
 
     from src.rotas.cliente import cliente_bp
     from src.rotas.admin import admin_bp
+    from src.services import whatsapp
 
     app.register_blueprint(cliente_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.add_template_filter(whatsapp.nome_barbeiro, "nome_barbeiro")
     csrf.exempt("cliente.confirmar_antecipacao")
 
     with app.app_context():

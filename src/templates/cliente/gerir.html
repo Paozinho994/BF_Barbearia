@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BF Barbearia - O Meu Agendamento</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0a0a0a; color: #fff; font-family: sans-serif; }
+        .wrapper { max-width: 480px; margin: 0 auto; padding: 1.5rem 12px 3rem; }
+        .card { background: #171717; border: 1px solid #262626; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.25rem; }
+        h1 { color: #f59e0b; font-size: 1.4rem; margin: 0 0 1rem; }
+        h2 { color: #f59e0b; font-size: 1.05rem; margin: 0 0 0.75rem; }
+        .detalhes { background: #262626; padding: 12px; border-radius: 8px; font-weight: bold; line-height: 1.7; }
+        .erro { background: #450a0a; border: 1px solid #ef4444; color: #fecaca; padding: 12px; border-radius: 8px; margin-bottom: 1rem; }
+        .sucesso { background: #052e16; border: 1px solid #22c55e; color: #bbf7d0; padding: 12px; border-radius: 8px; margin-bottom: 1rem; font-weight: bold; }
+        label { display: block; font-size: 0.85rem; color: #a3a3a3; margin: 0.9rem 0 0.3rem; }
+        select, input { width: 100%; padding: 0.7rem; border-radius: 8px; border: 1px solid #404040; background: #0a0a0a; color: #fff; font-size: 1rem; }
+        button { width: 100%; border: none; border-radius: 8px; padding: 14px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
+        .btn-reagendar { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; }
+        .btn-cancelar { background: #dc2626; color: #fff; }
+        .secao { border-top: 1px solid #262626; padding-top: 1.25rem; margin-top: 1.25rem; }
+        .nota { color: #737373; font-size: 0.8rem; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+
+    <div class="card">
+        <h1>O Meu Agendamento</h1>
+        {% for mensagem in get_flashed_messages(with_categories=true) %}
+            {% if mensagem[1] == 'sucesso' %}
+                <div class="sucesso">{{ mensagem[0] }}</div>
+            {% endif %}
+        {% endfor %}
+        {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+        <div class="detalhes">
+            Olá <strong>{{ agendamento.nome }}</strong>!<br>
+            📅 Dia: <strong>{{ agendamento.data }}</strong><br>
+            ⏰ Hora: <strong>{{ agendamento.hora }}</strong><br>
+            ✂️ Profissional: <strong>{{ agendamento.barbeiro|nome_barbeiro }}</strong><br>
+            💈 Serviço: <strong>{{ agendamento.servico }}</strong>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🔄 Reagendar</h2>
+        <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="acao" value="reagendar"/>
+            <label for="data">Novo dia</label>
+            <input type="date" id="data" name="data" min="{{ data_atual_sistema }}" required>
+            <label for="barbeiro">Novo barbeiro</label>
+            <select id="barbeiro" name="barbeiro" required>
+                <option value="qualquer" selected>Qualquer um (Mais rápido)</option>
+                <option value="barbeiro_1">Bruno Ferreira Barber</option>
+                <option value="barbeiro_2">Matheus Santos Barber</option>
+            </select>
+            <label for="hora">Nova hora</label>
+            <select id="hora" name="hora" required>
+                <option value="" disabled selected>Escolhe primeiro o dia...</option>
+            </select>
+            <button type="submit" class="btn-reagendar">Confirmar Novo Horário</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>❌ Cancelar</h2>
+        <p style="color:#a3a3a3; font-size:0.9rem;">Ao cancelar, a vaga é libertada e pode ser oferecida a outro cliente.</p>
+        <form method="POST" action="" onsubmit="return confirm('Tens a certeza que queres cancelar o teu agendamento?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="acao" value="cancelar"/>
+            <button type="submit" class="btn-cancelar">Cancelar o Meu Agendamento</button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    const inputData = document.getElementById('data');
+    const selectBarbeiro = document.getElementById('barbeiro');
+    const selectHora = document.getElementById('hora');
+
+    async function atualizarHorarios() {
+        const data = inputData.value;
+        const barbeiro = selectBarbeiro.value;
+        if (!data || !barbeiro) return;
+
+        const dataObj = new Date(data + 'T00:00:00');
+        const diaDaSemana = dataObj.getDay();
+        if (diaDaSemana === 0 || diaDaSemana === 1) {
+            selectHora.innerHTML = '<option value="" disabled selected>🚫 Dia de Folga da Equipe</option>';
+            return;
+        }
+
+        try {
+            const resposta = await fetch(`/verificar-disponibilidade?data=${data}&barbeiro=${barbeiro}`);
+            const horariosLivres = await resposta.json();
+            selectHora.innerHTML = '<option value="" disabled selected>Selecione...</option>';
+            if (horariosLivres.length === 0) {
+                selectHora.innerHTML = '<option value="" disabled selected>❌ Sem vagas para este dia</option>';
+                return;
+            }
+            horariosLivres.forEach(hora => {
+                const option = document.createElement('option');
+                option.value = hora;
+                option.textContent = hora;
+                selectHora.appendChild(option);
+            });
+        } catch (erro) {
+            console.error("Erro ao obter horários:", erro);
+        }
+    }
+
+    inputData.addEventListener('change', atualizarHorarios);
+    selectBarbeiro.addEventListener('change', atualizarHorarios);
+</script>
+</body>
+</html>
