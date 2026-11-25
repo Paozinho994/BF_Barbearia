@@ -29,6 +29,7 @@ from src.constants import (
     STATUS_ATIVO,
     STATUS_CANCELADO,
     STATUS_EM_PROPOSTA,
+    STATUS_OCUPA_VAGA,
     STATUS_RECUSADO_CICLO,
     TIMEOUT_CACA_VAGAS_MINUTOS,
 )
@@ -115,8 +116,11 @@ def _escolher_barbeiro(data: str, hora: str, preferencia: str,
 
 def _horario_ocupado(data: str, hora: str, barbeiro: str,
                      excluir_id: int | None = None) -> bool:
-    query = Agendamentos.query.filter_by(
-        data=data, hora=hora, barbeiro=barbeiro, status=STATUS_ATIVO
+    query = Agendamentos.query.filter(
+        Agendamentos.data == data,
+        Agendamentos.hora == hora,
+        Agendamentos.barbeiro == barbeiro,
+        Agendamentos.status.in_(STATUS_OCUPA_VAGA),
     )
     if excluir_id is not None:
         query = query.filter(Agendamentos.id != excluir_id)
@@ -161,16 +165,22 @@ def horarios_livres(data: str, barbeiro: str) -> list[str]:
 
     agora = datetime.now()
     if barbeiro != "qualquer":
-        ocupadas = {m.hora for m in Agendamentos.query.filter_by(
-            data=data, barbeiro=barbeiro, status=STATUS_ATIVO
+        ocupadas = {m.hora for m in Agendamentos.query.filter(
+            Agendamentos.data == data,
+            Agendamentos.barbeiro == barbeiro,
+            Agendamentos.status.in_(STATUS_OCUPA_VAGA),
         ).all()}
         livres = [h for h in HORARIOS if h not in ocupadas]
     else:
-        ocupadas_b1 = {m.hora for m in Agendamentos.query.filter_by(
-            data=data, barbeiro="barbeiro_1", status=STATUS_ATIVO
+        ocupadas_b1 = {m.hora for m in Agendamentos.query.filter(
+            Agendamentos.data == data,
+            Agendamentos.barbeiro == "barbeiro_1",
+            Agendamentos.status.in_(STATUS_OCUPA_VAGA),
         ).all()}
-        ocupadas_b2 = {m.hora for m in Agendamentos.query.filter_by(
-            data=data, barbeiro="barbeiro_2", status=STATUS_ATIVO
+        ocupadas_b2 = {m.hora for m in Agendamentos.query.filter(
+            Agendamentos.data == data,
+            Agendamentos.barbeiro == "barbeiro_2",
+            Agendamentos.status.in_(STATUS_OCUPA_VAGA),
         ).all()}
         hora_cheia = ocupadas_b1 & ocupadas_b2
         livres = [h for h in HORARIOS if h not in hora_cheia]

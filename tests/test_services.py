@@ -237,6 +237,32 @@ class TestHorariosLivres:
             assert agendamentos.horarios_livres(d.strftime(FORMATO_DATA),
                                                 "barbeiro_1") == []
 
+    def test_vaga_em_proposta_continua_bloqueada(self, app):
+        """Regressão: um cliente em proposta do Caça-Vagas não pode ter a
+        sua vaga reservada por outro cliente no site público."""
+        with app.app_context():
+            data = proxima_terca()
+            criar_agendamento_direto(
+                data=data, hora="10:00", barbeiro="barbeiro_1",
+                status=STATUS_EM_PROPOSTA,
+            )
+            livres = agendamentos.horarios_livres(data, "barbeiro_1")
+            assert "10:00" not in livres
+            assert "10:30" in livres
+
+    def test_criacao_online_rejeita_vaga_em_proposta(self, app):
+        with app.app_context():
+            data = proxima_terca()
+            criar_agendamento_direto(
+                data=data, hora="10:00", barbeiro="barbeiro_1",
+                status=STATUS_EM_PROPOSTA,
+            )
+            ag, erro = agendamentos.criar_agendamento_online(
+                dados_online(data=data, hora="10:00", barbeiro="barbeiro_1")
+            )
+            assert ag is None
+            assert erro["status"] == 400
+
 
 # ---------------------------------------------------------------------------
 # agendamentos.py — marcação manual

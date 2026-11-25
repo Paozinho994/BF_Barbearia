@@ -35,6 +35,9 @@ STATUS_CANCELADO = "cancelado"
 STATUS_EM_PROPOSTA = "em_proposta"
 STATUS_RECUSADO_CICLO = "recusado_ciclo"
 
+# Estados que ocupam a vaga para efeitos de disponibilidade pública
+STATUS_OCUPA_VAGA = (STATUS_ATIVO, STATUS_EM_PROPOSTA)
+
 # Regras do Caça-Vagas
 JANELA_SILENCIO = (22, 8)          # Convites congelados entre as 22h e as 08h
 MARGEM_ANTECEDENCIA_MINUTOS = 30   # Vagas a menos de 30 min não disparam convites
